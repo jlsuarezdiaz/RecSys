@@ -17,6 +17,8 @@ class RecommenderSystem:
 
     KEYWORDS_PATH = MOVIES_FOLDER + 'keywords.csv'
 
+    RATINGS_PATH = MOVIES_FOLDER + 'ratings_small.csv'
+
     # Get the director's name from the crew feature. If director is not listed, return NaN
     def _get_director(self, x):
         for i in x:
@@ -99,6 +101,9 @@ class RecommenderSystem:
         self.metadata = self.metadata.reset_index()
         self.indices = pd.Series(self.metadata.index, index=self.metadata['clean_title'])
 
+        # Dataframe con los ratings
+        self.ratings = pd.read_csv(RecommenderSystem.RATINGS_PATH)
+
     def get_metadata(self):
         return self.metadata
 
@@ -145,25 +150,40 @@ class RecommenderSystem:
         del self.similarity
         gc.collect()
 
-    def get_content_recommendations(self, title, top=10):
+    def get_content_recommendations_by_index(self, index, top=10):
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
+        if isinstance(index, int):
+            index = [index]
 
-        clean_title = self._clean_title(title)
-        # Get the index of the movie that matches the title
-        idx = self.indices[clean_title]
+        nmovies = len(index)
 
         # Get the pairwsie similarity scores of all movies with that movie
-        sim_scores = list(enumerate(np.asarray(self.similarity[idx].todense().max(axis=0)).ravel()))
+        sim_scores = list(enumerate(np.asarray(self.similarity[index].todense().max(axis=0)).ravel()))
 
         # Sort the movies based on the similarity scores
         sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
+        print(sim_scores)
+        print(top, nmovies)
         # Get the scores of the 10 most similar movies
-        sim_scores = sim_scores[1:(top + 1)]
+        sim_scores = sim_scores[nmovies:(top + nmovies)]
 
         # Get the movie indices
         movie_indices = [i[0] for i in sim_scores]
+
+        return movie_indices
+
+    def get_content_recommendations(self, title, top=10):
+        if self.similarity is None:
+            raise ValueError("A similarity metric must be defined.")
+        if isinstance(title, str):
+            title = [title]
+
+        clean_title = [self._clean_title(t) for t in title]
+        # Get the index of the movie that matches the title
+        idx = self.indices[clean_title]
+
+        movie_indices = self.get_content_recommendations_by_index(idx, top)
 
         # Return the top 10 most similar movies
         return self.metadata['title'].iloc[movie_indices]
