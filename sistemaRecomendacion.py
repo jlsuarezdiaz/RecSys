@@ -11,7 +11,7 @@ import gc
 
 class RecommenderSystem:
 
-    MOVIES_FOLDER = '../input/'
+    MOVIES_FOLDER = 'the-movies-dataset/'
     
     METADATA_PATH = MOVIES_FOLDER + 'movies_metadata.csv'
 
@@ -19,7 +19,7 @@ class RecommenderSystem:
 
     KEYWORDS_PATH = MOVIES_FOLDER + 'keywords.csv'
 
-    RATINGS_PATH = MOVIES_FOLDER + 'ratings.csv'
+    RATINGS_PATH = MOVIES_FOLDER + 'ratings_small.csv'
     
     LINKS_PATH = MOVIES_FOLDER + 'links.csv'
     # Get the director's name from the crew feature. If director is not listed, return NaN
@@ -208,7 +208,7 @@ class RecommenderSystem:
             return np.nan
 
 
-    def get_hybrid_recommendations(self,userId, title):
+    def get_hybrid_recommendations(self, userId, title):
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         
@@ -221,9 +221,29 @@ class RecommenderSystem:
         # mezclamos por id con los datos
         id_map = id_map.merge(self.metadata[['title', 'id','clean_title']], on='id').set_index('title')
         indices_map = id_map.set_index('id')
+        indices_map = indices_map.loc[~indices_map.index.duplicated()]
 
-        print(id_map.head(5))
-        print(indices_map.head(5))
+        reader = Reader()
+
+        # Load ratings
+        ratings = pd.read_csv(RecommenderSystem.RATINGS_PATH)
+        # ratings.head()
+      
+        data = Dataset.load_from_df(ratings[['userId', 'movieId', 'rating']], reader)
+        # data.split(n_folds=nfolds)
+
+        # perform SVD decomposition
+        svd = SVD()
+
+        # evaluation of SVD decomposition
+        # evaluate(svd, data, measures=['RMSE', 'MAE'])
+
+        # training phase
+        train = data.build_full_trainset()
+        svd.fit(train)
+
+        # print(id_map.head(5))
+        # print(indices_map.head(5))
         
         # esto si sirve
         clean_title = self._clean_title(title)
@@ -238,14 +258,17 @@ class RecommenderSystem:
         #tmdbId = id_map.loc[clean_title]['id']
         #movie_id = id_map.loc[clean_title]['movieId']
         
-        sim_scores = list(enumerate(self.similarity[idx]))
+        sim_scores = list(enumerate(np.asarray(self.similarity[idx].todense().max(axis=0)).ravel()))
         sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
         sim_scores = sim_scores[1:26]
+
         movie_indices = [i[0] for i in sim_scores]
-            
-        movies = self.metadata.iloc[movie_indices][['title', 'vote_count', 'vote_average','id']]
+        movies = self.metadata.iloc[movie_indices][['title', 'vote_count', 'vote_average', 'id']]
+        print(movies)
+        print(indices_map)
         movies['est'] = movies['id'].apply(lambda x: svd.predict(userId, indices_map.loc[x]['movieId']).est)
         movies = movies.sort_values('est', ascending=False)
+
         return movies.head(10)
 
 
