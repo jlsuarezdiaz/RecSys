@@ -122,14 +122,20 @@ class RecommenderSystem:
         print("Loading ratings...")
         self.ratings = pd.read_csv(RecommenderSystem.RATINGS_PATH)
 
+        print("Indexing...")
         # Índices para mapear entre ratings y metadata
         self.id_map = pd.read_csv(RecommenderSystem.LINKS_PATH)[['movieId', 'tmdbId']]
         self.id_map['tmdbId'] = self.id_map['tmdbId'].apply(self._convert_int)
         self.id_map.columns = ['movieId', 'id']
         # mezclamos por id con los datos
         self.id_map = self.id_map.merge(self.metadata[['title', 'id', 'clean_title']], on='id').set_index('title')
+        # índice para id --> movieId
         self.indices_map = self.id_map.set_index('id')
         self.indices_map = self.indices_map.loc[~self.indices_map.index.duplicated()]
+        # índice para movieId --> id
+        self.di_map = self.id_map.set_index('movieId')
+        # índice para id --> metadata.index
+        self.meta_map = pd.Series(self.metadata.index, index=self.metadata['id'])
 
         reader = Reader()
 
@@ -270,23 +276,23 @@ class RecommenderSystem:
     def get_collaborative_recommendations_by_index(self, userId, top=10):
         # nos quedamos unicamente con las películas que no haya visto userId.
         # tomamos unicamente aquellas peliculas que no ha visto
-        condition = self.ratings[self.ratings.iloc[:,0] != 1]
-        movie_indices = condition['movieId'].drop_duplicates()
-        
+        condition = self.ratings[self.ratings['userId'] == userId]
+        movieIds = condition['movieId']
+        ids = self.di_map.loc[movieIds]['id']
+        movie_indices = self.meta_map.loc[ids]
+
         # buscamos en el dataset con todos los datos las peliculas cuyo Id corresponde con el de la condición anterior y obtenemos los datos deseados
         movies = self.metadata.loc[movie_indices][['title', 'vote_count', 'vote_average', 'id']]
         movies = movies.dropna()
         movies['estimation'] = movies['id'].apply(lambda x: self.user_training.predict(userId, self.indices_map.loc[x]['movieId']).est)
         movies = movies.sort_values('estimation', ascending=False)
         return list(movies.index)[:top], movies['estimation'].head(top)
-        
 
-    def get_collaborative_recommendations(self,userId, top=10):
-        movie_indices, estimations = self.get_collaborative_recommendations_by_index(userId,top)
+    def get_collaborative_recommendations(self, userId, top=10):
+        movie_indices, estimations = self.get_collaborative_recommendations_by_index(userId, top)
         results = pd.concat([self.metadata['title'].iloc[movie_indices], estimations], axis=1)
 
-        return results        
-
+        return results
 
 # # Ejemplo de uso:
 # $ python -i recommender_system.py
@@ -297,13 +303,11 @@ class RecommenderSystem:
 # > recsys.set_XXXX_similarity_metric()  # Elegir métrica de similaridad
 # > recsys.get_content_recommendations('The Dark Knight Rises')
 #
+# # Aproximación colaborativa
+# > recsys.set_XXXX_user_training()
+# > recsys.get_collaborative_recommendations(1)
+#
 # # Aproximación híbrida
 # > recsys.set_XXXX_similarity_metric()
 # > recsys.set_XXXX_user_training()
 # > recsys.get_hybrid_recommendations(1, 'The Dark Knight Rises')
-#
-# # Aproximación colaborativa
-# > recsys.set_XXXX_user_training()
-# > recsys.get_collaborative_recommendations(1)
-
-
