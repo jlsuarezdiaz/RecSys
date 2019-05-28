@@ -4,7 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 from sklearn.metrics.pairwise import cosine_similarity
 from ast import literal_eval
-from surprise import Reader, Dataset, SVD, evaluate
+from surprise import Reader, Dataset, SVD, evaluate, KNNBasic
 from metrics import personalization, coverage, intra_list_similarity
 import gc
 
@@ -65,6 +65,12 @@ class RecommenderSystem:
         except:
             return np.nan
 
+    def _weighted_rating(self, x, m, C):
+        v = x['vote_count']
+        R = x['vote_average']
+
+        return 0.0 if v < m else (v / (v + m) * R) + (m / (m + v) * C)
+
     def __init__(self):
         self.similarity = None
         self.similarity_type = None
@@ -118,6 +124,11 @@ class RecommenderSystem:
         self.metadata = self.metadata.reset_index()
         self.indices = pd.Series(self.metadata.index, index=self.metadata['clean_title'])
 
+        # Scores de popularidad
+        m = self.metadata['vote_count'].quantile(0.9)
+        C = self.metadata['vote_average'].mean()
+        self.metadata['score'] = self.metadata.apply(self._weighted_rating, axis=1, C=C, m=m)
+
         # Dataframe con los ratings
         print("Loading ratings...")
         self.ratings = pd.read_csv(RecommenderSystem.RATINGS_PATH)
@@ -146,6 +157,28 @@ class RecommenderSystem:
 
     def get_metadata(self):
         return self.metadata
+
+    def get_popularity_recommendations_by_index(self, top=10):
+        meta_sorted = self.metadata[['vote_count', 'vote_average', 'score']].sort_values('score', ascending=False)
+        return list(meta_sorted.index)[:top], meta_sorted['score'].head(top)
+
+    def get_popularity_recommendations(self, top=10):
+        movie_indices, _ = self.get_popularity_recommendations_by_index(top)
+        return self.metadata[['title', 'vote_count', 'vote_average', 'score']].loc[movie_indices]
+
+    def get_popularity_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_popularity_recommendations_by_index(top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_popularity_recommendations_for_user(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_popularity_recommendations(top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
 
     # Métrica de simililtud basada en las descripciones de las películas.
     def set_overview_similarity_metric(self):
@@ -248,6 +281,14 @@ class RecommenderSystem:
             self.user_training_type = 'svd'
             print("Training SVD...")
             self.user_training = SVD()
+            train = self.rating_ds.build_full_trainset()
+            self.user_training.fit(train)
+
+    def set_knn_user_training(self):
+        if self.user_training_type != 'knn':
+            self.user_training_type = 'knn'
+            print("Training KNN...")
+            self.user_training = KNNBasic(k=40, min_k=4, verbose=True)
             train = self.rating_ds.build_full_trainset()
             self.user_training.fit(train)
 
@@ -401,6 +442,15 @@ class RecommenderSystem:
                 'intralist_overview_similarity': ils_overview,
                 'intralist_cgk_similarity': ils_cgk}
 
+    def evaluate_popularity_recommendations(self, top=10, positiveThresh=4.0):
+        print("Obtaining recommendations for every user (this may take a while)...")
+        user_ids = self.ratings['userId'].unique()
+        nusers = len(user_ids)
+
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_popularity_recommendations_for_user_by_index(uid, top, positiveThresh)[0] for uid in user_ids]
+
+        return self._evaluate_recommendations(rec_list)
+
     def evaluate_content_recommendations(self, top=10, positiveThresh=4.0):
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
@@ -449,6 +499,5 @@ class RecommenderSystem:
 
 recsys = RecommenderSystem()
 
-recsys.set_overview_similarity_metric()
-recsys.set_svd_user_training()
-# ecr = recsys.evaluate_hybrid_recommendations()
+# recsys.set_overview_similarity_metric()
+# recsys.set_svd_user_training()

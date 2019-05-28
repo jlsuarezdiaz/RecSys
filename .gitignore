@@ -1,2 +1,4 @@
 the-movies-dataset/
 the-movies-dataset/*
+__pycache__
+__pycache__/*
