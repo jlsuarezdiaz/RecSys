@@ -5,8 +5,9 @@ from sklearn.metrics.pairwise import linear_kernel
 from sklearn.metrics.pairwise import cosine_similarity
 from ast import literal_eval
 from surprise import Reader, Dataset, SVD, evaluate, KNNBasic
-from metrics import personalization, coverage, intra_list_similarity
+from metrics import personalization, coverage, intra_list_similarity, novelty
 import gc
+import random
 
 
 class RecommenderSystem:
@@ -436,11 +437,14 @@ class RecommenderSystem:
         ils_overview = intra_list_similarity(rec_list, tfidf_matrix)
         print("Calculating intra-list CGK similarity...")
         ils_cgk = intra_list_similarity(rec_list, count_matrix)
+        print("Calculating novelty...")
+        nov = novelty(rec_list)
 
         return {'coverage': cov,
                 'personalization': pers,
                 'intralist_overview_similarity': ils_overview,
-                'intralist_cgk_similarity': ils_cgk}
+                'intralist_cgk_similarity': ils_cgk,
+                'novelty': nov}
 
     def evaluate_popularity_recommendations(self, top=10, positiveThresh=4.0):
         print("Obtaining recommendations for every user (this may take a while)...")
@@ -497,7 +501,11 @@ class RecommenderSystem:
 # > recsys.set_XXXX_user_training()
 # > recsys.get_hybrid_recommendations(1, 'The Dark Knight Rises')
 
+# Use these before fitting an algorithm
+np.random.seed(28)
+random.seed(28)
+
 recsys = RecommenderSystem()
 
-# recsys.set_overview_similarity_metric()
-# recsys.set_svd_user_training()
+recsys.set_overview_similarity_metric()
+recsys.set_svd_user_training()

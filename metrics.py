@@ -133,3 +133,14 @@ def intra_list_similarity(predicted, feature_df):
     Users = range(len(predicted))
     ils = [_single_list_similarity(predicted[u], feature_df) for u in Users]
     return np.mean(ils)
+
+
+def novelty(predicted):
+    # get all unique items recommended
+    predicted_flattened = np.array([p for sublist in predicted for p in sublist])
+    unique_recs = list(set(predicted_flattened))
+
+    probs = np.array([sum(predicted_flattened == u) / len(predicted) for u in unique_recs])
+    user_probs = [probs[np.where(np.isin(unique_recs, predicted[u]))] for u in range(len(predicted))]
+    novelty = - np.mean([np.sum(p * np.log(p)) for p in user_probs])
+    return novelty
