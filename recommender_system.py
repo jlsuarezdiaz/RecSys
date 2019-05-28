@@ -5,7 +5,7 @@ from sklearn.metrics.pairwise import linear_kernel
 from sklearn.metrics.pairwise import cosine_similarity
 from ast import literal_eval
 from surprise import Reader, Dataset, SVD, evaluate
-
+from metrics import personalization, coverage, intra_list_similarity
 import gc
 
 
@@ -197,20 +197,17 @@ class RecommenderSystem:
         if isinstance(index, int):
             index = [index]
 
-        nmovies = len(index)
+        # nmovies = len(index)
 
         # Get the pairwsie similarity scores of all movies with that movie
-        sim_scores = list(enumerate(np.asarray(self.similarity[index].todense().max(axis=0)).ravel()))
-
+        sim_scores = np.array(list(enumerate(np.asarray(self.similarity[index].tocsc().max(axis=0).todense()).ravel())))
+        sim_scores[index, 1] = -1.0
         # Sort the movies based on the similarity scores
         sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
         # Get the scores of the 10 most similar movies
-        sim_scores = sim_scores[nmovies:(top + nmovies)]
-
+        sim_scores = sim_scores[:top]
         # Get the similarities
         similarities = [i[1] for i in sim_scores]
-
         # Get the movie indices
         movie_indices = [i[0] for i in sim_scores]
 
@@ -224,14 +221,27 @@ class RecommenderSystem:
 
         clean_title = [self._clean_title(t) for t in title]
         # Get the index of the movie that matches the title
-        idx = self.indices[clean_title]
-
+        idx = list(self.indices[clean_title])
         movie_indices, similarities = self.get_content_recommendations_by_index(idx, top)
 
         # Return the top 10 most similar movies
         results = pd.DataFrame(zip(self.metadata['title'].iloc[movie_indices], similarities), columns=['title', 'similarity'])
         return results
         # return self.metadata['title'].iloc[movie_indices]
+
+    def get_content_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_content_recommendations_by_index(self.get_liked_movies_by_index(userId, positiveThresh)[0], top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_content_recommendations_for_user(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_content_recommendations(self.get_liked_movies(userId, positiveThresh)['title'], top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
 
     def set_svd_user_training(self):
         if self.user_training_type != 'svd':
@@ -244,8 +254,10 @@ class RecommenderSystem:
     def get_collaborative_recommendations_by_index(self, userId, top=10):
         # nos quedamos unicamente con las películas que no haya visto userId.
         # tomamos unicamente aquellas peliculas que no ha visto
-        condition = self.ratings[self.ratings['userId'] != userId]
-        movieIds = condition['movieId'].unique()
+        condition = self.ratings[self.ratings['userId'] == userId]
+        movieIdSeen = condition['movieId'].unique()
+        allmovieId = self.ratings['movieId'].unique()
+        movieIds = np.setdiff1d(allmovieId, movieIdSeen)
         ids = self.di_map.loc[movieIds]['id']
         movie_indices = self.meta_map.loc[ids]
 
@@ -262,13 +274,27 @@ class RecommenderSystem:
 
         return results
 
+    def get_collaborative_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_collaborative_recommendations_by_index(userId, top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_collaborative_recommendations_for_user(self, userId, top=10, positiveThresh=4.0):
+        try:
+            return self.get_collaborative_recommendations(userId, top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
     def get_hybrid_recommendations_by_index(self, userId, index, top=10, content_top=25):
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(index, int):
             index = [index]
 
-        nmovies = len(index)
+        # nmovies = len(index)
         # para el hibrido necesitamos saber el indice de la pelicula en metadata original
         # tras ello, buscamos las peliculas con mayor similitud según el coseno
         # devolvemos las peliculas con mejor estimacion de puntuacion usando svd
@@ -276,9 +302,10 @@ class RecommenderSystem:
         # tmdbId = id_map.loc[clean_title]['id']
         # movie_id = id_map.loc[clean_title]['movieId']
 
-        sim_scores = list(enumerate(np.asarray(self.similarity[index].todense().max(axis=0)).ravel()))
+        sim_scores = np.array(list(enumerate(np.asarray(self.similarity[index].tocsc().max(axis=0).todense()).ravel())))
+        sim_scores[index, 1] = -1.0
         sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-        sim_scores = sim_scores[nmovies:(content_top + nmovies)]
+        sim_scores = sim_scores[:content_top]
 
         movie_indices = [i[0] for i in sim_scores]
         movies = self.metadata.iloc[movie_indices][['title', 'vote_count', 'vote_average', 'id']]
@@ -295,12 +322,26 @@ class RecommenderSystem:
 
         clean_title = [self._clean_title(t) for t in title]
         # Get the index of the movie that matches the title
-        idx = self.indices[clean_title]
+        idx = list(self.indices[clean_title])
 
         movie_indices, estimations = self.get_hybrid_recommendations_by_index(userId, idx, top, content_top)
         results = pd.concat([self.metadata['title'].iloc[movie_indices], estimations], axis=1)
 
         return results
+
+    def get_hybrid_recommendations_for_user_by_index(self, userId, top=10, content_top=25, positiveThresh=4.0):
+        try:
+            return self.get_hybrid_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh)[0], top, content_top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_hybrid_recommendations_for_user(self, userId, top=10, content_top=25, positiveThresh=4.0):
+        try:
+            return self.get_hybrid_recommendations(userId, self.get_liked_movies(userId, positiveThresh)['title'], top)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_watched_movies_by_index(self, userId):
         watched_mid = self.ratings[self.ratings['userId'] == userId]
@@ -327,6 +368,66 @@ class RecommenderSystem:
         results = pd.DataFrame(zip(self.metadata['title'].iloc[indices], ratings), columns=['title', 'rating'])
         return results
 
+    def _evaluate_recommendations(self, rec_list):
+        print("Preprocessing...")
+        movie_indices = list(self.metadata.index)
+
+        tfidf = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = tfidf.fit_transform(self.metadata['overview'])
+
+        features = ['cast', 'keywords', 'genres']
+        top_features = pd.DataFrame()
+        for feature in features:
+            top_features['top_' + feature] = self.metadata['clean_' + feature].apply(lambda x: x[:3])
+        top_features['clean_director'] = self.metadata['clean_director']
+        top_features['soup'] = top_features.apply(self._create_soup, axis=1)
+
+        # Create the count matrix
+        count = CountVectorizer(stop_words='english')
+        count_matrix = count.fit_transform(top_features['soup'])
+        # sim_df_overview = pd.DataFrame(tfidf_matrix, index=self.metadata.index)
+
+        print("Calculating coverage...")
+        cov = coverage(rec_list, movie_indices)
+        print("Calculating personalization...")
+        pers = personalization(rec_list)
+        print("Calculating intra-list overview similarity...")
+        ils_overview = intra_list_similarity(rec_list, tfidf_matrix)
+        print("Calculating intra-list CGK similarity...")
+        ils_cgk = intra_list_similarity(rec_list, count_matrix)
+
+        return {'coverage': cov,
+                'personalization': pers,
+                'intralist_overview_similarity': ils_overview,
+                'intralist_cgk_similarity': ils_cgk}
+
+    def evaluate_content_recommendations(self, top=10, positiveThresh=4.0):
+        print("Obtaining recommendations for every user (this may take a while)...")
+        user_ids = self.ratings['userId'].unique()
+        nusers = len(user_ids)
+
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_content_recommendations_for_user_by_index(uid, top, positiveThresh)[0] for uid in user_ids]
+
+        return self._evaluate_recommendations(rec_list)
+
+    def evaluate_collaborative_recommendations(self, top=10, positiveThresh=4.0):
+        print("Obtaining recommendations for every user (this may take a while)...")
+        user_ids = self.ratings['userId'].unique()
+        nusers = len(user_ids)
+
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_collaborative_recommendations_for_user_by_index(uid, top, positiveThresh)[0] for uid in user_ids]
+
+        return self._evaluate_recommendations(rec_list)
+
+    def evaluate_hybrid_recommendations(self, top=10, content_top=25, positiveThresh=4.0):
+        print("Obtaining recommendations for every user (this may take a while)...")
+        user_ids = self.ratings['userId'].unique()
+        nusers = len(user_ids)
+
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_recommendations_for_user_by_index(uid, top, content_top, positiveThresh)[0] for uid in user_ids]
+
+        return self._evaluate_recommendations(rec_list)
+
 
 # # Ejemplo de uso:
 # $ python -i recommender_system.py
@@ -345,3 +446,9 @@ class RecommenderSystem:
 # > recsys.set_XXXX_similarity_metric()
 # > recsys.set_XXXX_user_training()
 # > recsys.get_hybrid_recommendations(1, 'The Dark Knight Rises')
+
+recsys = RecommenderSystem()
+
+recsys.set_overview_similarity_metric()
+recsys.set_svd_user_training()
+# ecr = recsys.evaluate_hybrid_recommendations()
