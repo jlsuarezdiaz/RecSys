@@ -384,11 +384,11 @@ class RecommenderSystem:
         return results
 
     def get_hybrid_recommendations_for_user_by_index(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
-        # try:
-        return self.get_hybrid_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, content_top, user_training)
-        # except:
-        #    print("No positive recommendations for this user under this threshold.")
-        #    return pd.DataFrame([], columns=['title', 'similarity'])
+        try:
+            return self.get_hybrid_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, content_top, user_training)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_hybrid_recommendations_for_user(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
         try:
@@ -607,11 +607,14 @@ class RecommenderSystem:
             # Chanchullo para solucionar la falta de funcionalidad de surprise
             df = DatasetUserFolds([('recommender_system.py', 'recommender_system.py')], Reader())
             df.raw_folds = lambda: self._raw_folds_surprise(train, test_pre)
+
             if self.user_training_type == 'svd':
                 alg = SVD()
             elif self.user_training_type == 'knn':
                 alg = KNNBasic(80, 20)
             for train_s, test_s in df.folds():
+                np.random.seed(random_state)
+                random.seed(random_state)
                 alg.fit(train_s)
 
             print("Obtaining recommendations for every user (this may take a while)...")
@@ -660,6 +663,8 @@ class RecommenderSystem:
             elif self.user_training_type == 'knn':
                 alg = KNNBasic(80, 20)
             for train_s, test_s in df.folds():
+                np.random.seed(random_state)
+                random.seed(random_state)
                 alg.fit(train_s)
 
             print("Obtaining recommendations for every user (this may take a while)...")
@@ -713,11 +718,11 @@ class RecommenderSystem:
 
 # Use these before fitting an algorithm
 
+if __name__ == "__main__":
+    np.random.seed(28)
+    random.seed(28)
 
-np.random.seed(28)
-random.seed(28)
+    recsys = RecommenderSystem()
 
-recsys = RecommenderSystem()
-
-recsys.set_overview_similarity_metric()
-recsys.set_svd_user_training()
+    recsys.set_overview_similarity_metric()
+    recsys.set_svd_user_training()
