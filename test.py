@@ -16,6 +16,11 @@ np.random.seed(28)
 random.seed(28)
 recsys.set_svd_user_training()
 
+# Evaluación de popularity-based
+print("Popularity-based")
+print(recsys.evaluate_popularity_recommendations(top=10, positiveThresh=3.5))
+print(recsys.validate_popularity_recommendations(n_folds=5, movie_train=0.5, top=20, positiveThresh=3.5, random_state=28))
+
 # Evaluación de content-based con overview similarity
 print("Content-based con overview similarity")
 print(recsys.evaluate_content_recommendations(top=10, positiveThresh=3.5))
