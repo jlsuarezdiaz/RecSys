@@ -264,7 +264,7 @@ class RecommenderSystem:
         movie_indices, similarities = self.get_content_recommendations_by_index(idx, top)
 
         # Return the top 10 most similar movies
-        results = pd.DataFrame(zip(self.metadata['title'].iloc[movie_indices], similarities), columns=['title', 'similarity'])
+        results = pd.DataFrame(list(zip(self.metadata['title'].iloc[movie_indices], similarities)), columns=['title', 'similarity'])
         return results
         # return self.metadata['title'].iloc[movie_indices]
 
@@ -408,7 +408,7 @@ class RecommenderSystem:
 
     def get_watched_movies(self, userId, user_ratings=None):
         indices, ratings = self.get_watched_movies_by_index(userId, user_ratings)
-        results = pd.DataFrame(zip(self.metadata['title'].iloc[indices], ratings), columns=['title', 'rating'])
+        results = pd.DataFrame(list(zip(self.metadata['title'].iloc[indices], ratings)), columns=['title', 'rating'])
         return results
 
     def get_liked_movies_by_index(self, userId, positiveThresh=4.0, ratings=None):
@@ -423,7 +423,7 @@ class RecommenderSystem:
 
     def get_liked_movies(self, userId, positiveThresh=4.0, user_ratings=None):
         indices, ratings = self.get_liked_movies_by_index(userId, positiveThresh, user_ratings)
-        results = pd.DataFrame(zip(self.metadata['title'].iloc[indices], ratings), columns=['title', 'rating'])
+        results = pd.DataFrame(list(zip(self.metadata['title'].iloc[indices], ratings)), columns=['title', 'rating'])
         return results
 
     def _evaluate_recommendations(self, rec_list):
