@@ -170,14 +170,22 @@
 
 			Esta aproximación es una mezcla de los dos anteriores En este caso nuestra sistema va a procesar un usuario y una lista de películas. El proceso para la aproximación híbrida consiste en calcular una métrica de similitud como se expuso en el método basado en contenido y, tras ello, obtener las mejores películas que nos da esa aproximación (las $n$ mejores). A continuación, para esas películas usamos el modelo aprendido por KNN o SVD y obtenemos las predicciones.
 
-	\section{Evaluación}
+	\section{Evaluación y validación}
 	
+		Una vez que hemos visto las diferentes aproximaciones que se han planteado, hemos de ser capaces de evaluar cómo de buenas son las recomendaciones que se han realizado. Para ello, presentamos las siguiente métricas.
+		
+		\begin{itemize}
+			\item \textbf{Coverage}: representa el porcentaje de items en el conjunto de entrenamiento que nuestro modelo es capaz de predecir en el test. 
+			\item \textbf{Personalization}: es una forma de evaluar si un modelo es capaz de recomendar bastantes items a diferentes usuarios. Esto se puede ver como una medida de disimilitud entre las listas de recomendaciones para distintos usuarios.
+			\item \textbf{Intra-list Similarity}: es la media la medida del coseno calculada anteriormente en una lista de recomendaciones.			
+		\end{itemize}
+		
+		En cuanto a la validación de los modelos hemos usado dos medidas conocidas en los problemas de clasificación: recall y precision. Para ello, hemos de ser capaces de definir un train y test.
 		
 	
 \begin{thebibliography}{X}
 	\bibitem{c1} \url{https://www.kaggle.com/rounakbanik/the-movies-dataset}
 	\bibitem{c2} \url{http://surpriselib.com/}
-	\bibitem{c3} \url{https://towardsdatascience.com/evaluation-metrics-for-recommender-systems-df56c6611093}
 \end{thebibliography}
 
 
