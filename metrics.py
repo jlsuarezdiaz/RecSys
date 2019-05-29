@@ -144,3 +144,63 @@ def novelty(predicted):
     user_probs = [probs[np.where(np.isin(unique_recs, predicted[u]))] for u in range(len(predicted))]
     novelty = - np.mean([np.sum(p * np.log(p)) for p in user_probs])
     return novelty
+
+
+def _ark(actual, predicted, k=10):
+    """
+    Computes the average recall at k.
+    Parameters
+    ----------
+    actual : list
+        A list of actual items to be predicted
+    predicted : list
+        An ordered list of predicted items
+    k : int, default = 10
+        Number of predictions to consider
+    Returns:
+    -------
+    score : int
+        The average recall at k.
+    """
+    if len(predicted) > k:
+        predicted = predicted[:k]
+
+    score = 0.0
+    num_hits = 0.0
+
+    for i, p in enumerate(predicted):
+        if p in actual and p not in predicted[:i]:
+            num_hits += 1.0
+            score += num_hits / (i + 1.0)
+
+    if not actual:
+        return 0.0
+
+    return score / len(actual)
+
+
+def mark(actual, predicted, k=10):
+    """
+    Computes the mean average recall at k.
+    Parameters
+    ----------
+    actual : a list of lists
+        Actual items to be predicted
+        example: [['A', 'B', 'X'], ['A', 'B', 'Y']]
+    predicted : a list of lists
+        Ordered predictions
+        example: [['X', 'Y', 'Z'], ['X', 'Y', 'Z']]
+    Returns:
+    -------
+        mark: int
+            The mean average recall at k (mar@k)
+    """
+    return np.mean([_ark(a, p, k) for a, p in zip(actual, predicted)])
+
+
+def precision(actual, predicted, k=10):
+    return np.nanmean([np.nan if len(p) == 0 else len(np.intersect1d(a, p[:k])) / len(p) for a, p in zip(actual, predicted)])
+
+
+def recall(actual, predicted, k=10):
+    return np.nanmean([np.nan if len(a) == 0 else len(np.intersect1d(a, p[:k])) / len(a) for a, p in zip(actual, predicted)])
