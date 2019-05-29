@@ -1,0 +1,94 @@
+En centos agrupamos los hds como un todo y en linux lo hacemos a nivel de particiones, es decir, lo que cuelga de sda etc
+
+Cuestion 1
+
+http://linux.die.net/man/8/yum
+funciones deprecated --> metodo esta activo pero posiblemente se elimine en versiones futuras. Se ofrece una alternativa.
+
+para ejecutar un script en boot usamos editamos el fichero /etc/init.d o /etc /rc.local
+instalar --> install
+search   --> 
+eliminar --> remove/erase
+
+
+cuestion 3
+
+sudo apt-cache search <nombre_paquete>
+
+
+cuestion 4
+
+Editamos /etc/apt/apt.conf.d o
+/etc/apt/apt-confd/01proxy
+y hay que añadir la linea 
+Acquire::http::Proxy dirIPproxy
+
+cuestion 5
+
+Telnet no es seguro y ssh si
+
+en telnet se intercambian las claves en texto plano y con un sniffer se puede coger la clave, pese a ser autenticado. ssh  en cambio es autenticado, cifrado, se encroptan las claves...
+
+cuestion 6
+
+editamos /etc/host con privilegios y añadimos la direccion ip y un nombre para identificarlo 
+
+pregunta examen
+
+añadir la opcion -X nos permite, si abrimos un progrma con iterfaz grafica en el cliente, se ejecutan en el servidor, pero se carga local.
+
+Cuestion 7
+ No se hace con root
+con ssh-keygen -t rsa
+
+se manda la clave publica y no la privada
+el mensaje se cifra con la publica y se envia con la publica y se descifra con la privada.
+
+hacemos ssh-copy-id <usuario>
+
+Cuestion 8
+
+El archivo es /etc/shh/shhd_config.
+Para bloquear que el usuario root no acceda como remoto se hace por temas de seguridad con el parametro PermitRootLogin.
+http://www.tldp.org/LDP/solrhe/Securing-Optimizing-Linux-RH-Edition-v1.3/chap15sec122.html
+Para cambiar el puerto cambiamos Port.
+PasswordAuthentication si usamos eso, vamos a tenerque instalar  la clave publica en la maquina servidora con la cual , la clave viaja y tenemos msa seguridad.
+
+Siempre que se cambie una configuracion en un servicio, se ha de reiniciar el servicio.
+
+Cuestion 9
+
+sudo service <nombre_servicio> restart
+
+En CentOS se usa
+mirar aqui...
+http://rm-rf.es/arrancar-parar-reiniciar-servicios-en-rhel-7-y-centos-7/
+
+Cuestion opccional 2
+
+con sudo apt-get install -y screen
+
+pulsamos ctrl+a y despues con c creamos ventana nueva, n next, p previous, w window number
+
+instalamos terminator : sudo apt-get install -y terminator
+
+diferencias entre terminator y screen
+
+terminator tiene interfaz grafica y screen se puede usar cuando no tenemos interfaz grafica
+
+Cuestion opcional 3
+
+Completar info de fail2ban
+
+sudo apt-get install y fail2ban
+
+fail2ban-server -b
+
+el archivo de configuracion es jail.conf
+
+Cuestion 10
+
+Instalamos MySql (el de por defecto) y le ponemos contraseña.
+
+
+Cuestiones por hacer: ftp windows, 
