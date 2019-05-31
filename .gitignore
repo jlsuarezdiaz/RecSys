@@ -2,3 +2,6 @@ the-movies-dataset/
 the-movies-dataset/*
 __pycache__
 __pycache__/*
+**/.RData
+*/.RData
+documentacion.rmd/.RData
