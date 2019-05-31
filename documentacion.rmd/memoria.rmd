@@ -1,0 +1,493 @@
+---
+output:
+  pdf_document:
+    fig_caption: yes
+    highlight: default
+    toc: no
+    toc_depth: 2
+    number_sections: yes
+    includes:
+      in_header: mystyles.sty
+bibliography: references.bib
+fontsize: 10pt
+geometry: a4paper, top=2.5cm, bottom=2.5cm, left=2cm, right=2cm
+lang: es-ES
+linestretch: 1
+csl: ieee.csl
+---
+<!--
+Highlights: default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, null
+-->
+<!--
+include-after: |2-
+  * * *
+  Esta obra se distribuye bajo una [Licencia Creative Commons Atribución-NoComercial-CompartirIgual 4.0 Internacional](http://creativecommons.org/licenses/by-nc-sa/4.0/).
+  
+mainfont: Arial
+monofont: Source Code Pro
+
+abstract: La navegación segura en Internet se extiende lentamente debido a numerosas
+  dificultades en los procesos necesarios para su implementación. En este texto se
+  explican y se analizan tres propuestas dirigidas a la difusión de las comunicaciones
+  seguras y a la mejora de la certificación y la autenticación. Se observan las nuevas
+  funcionalidades que traerá el próximo estándar HTTP/2 y se realiza un ejemplo de
+  instalación en un servidor. De la misma forma, se presenta una autoridad de certificación
+  automatizada, Let's Encrypt, y se demuestra su funcionamiento mediante las implementaciones
+  de cliente y servidor del protocolo asociado ACME. Por último, se explica el mecanismo
+  de verificación de identidad mediante certificados Convergence, frente a las autoridades
+  de certificación, y se muestra un ejemplo de su uso.
+  
+(Cosas que puedo añadir a la cabecera)
+-->
+
+<!--
+
+Añadir imagenes:
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/1_1.png}
+\caption{Instalación de phoronix suite.\label{fig:phinst}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/1_2.png}
+\caption{Lista de test disponibles.\label{fig:phtests}}
+\end{figure}
+
+-->
+\begin{titlepage}
+
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for the horizontal lines, change thickness here
+
+\center % Center everything on the page
+ 
+%----------------------------------------------------------------------------------------
+%	HEADING SECTIONS
+%----------------------------------------------------------------------------------------
+
+\textsc{\LARGE Sistemas de Recuperación de Información y de Recomendación }\\[0.3cm] % Name of your university/college
+\textsc{\LARGE Máster en Ciencia de Datos e Ingeniería de Computadores}\\[0.3cm]
+\textsc{\Large Universidad de Granada }\\[0.3cm]
+\textsc{\Large CURSO 2018/2019}\\[0.5cm] % Major heading such as course name
+ % Minor heading such as course title
+
+%----------------------------------------------------------------------------------------
+%	TITLE SECTION
+%----------------------------------------------------------------------------------------
+
+\HRule \\[0.4cm]
+{ \huge \bfseries Implementación y evaluación de un sistema de recomendación de películas }\\[0.03cm] % Title of your document
+\HRule \\[1.5cm]
+
+ 
+%----------------------------------------------------------------------------------------
+%	AUTHOR SECTION
+%----------------------------------------------------------------------------------------
+
+\begin{minipage}{0.5\textwidth}
+% \begin{flushleft} \large
+% \emph{Contenido}\\
+% Enfriamiento Simulado \\Búsqueda Local Reiterada\\Evolución Diferencial
+% \end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+\begin{center} \large
+\emph{Autores:} \\
+Javier Poyatos Amador \\
+Juan Luis Suárez Díaz\\
+\url{jpoyatosamador@correo.ugr.es}\\
+\url{jlsuarezdiaz@correo.ugr.es}\\
+\end{center}
+\end{minipage}\\[1cm]
+
+% If you don't want a supervisor, uncomment the two lines below and remove the section above
+%\Large \emph{Author:}\\
+%John \textsc{Smith}\\[3cm] % Your name
+
+%----------------------------------------------------------------------------------------
+%	DATE SECTION
+%----------------------------------------------------------------------------------------
+\newdateformat{mydate}{\THEDAY\ de \monthname[\THEMONTH]\ de \THEYEAR}
+
+{\large \mydate\today}\\[1cm] % Date, change the \today to a set date if you want to be precise
+
+%----------------------------------------------------------------------------------------
+%	LOGO SECTION
+%----------------------------------------------------------------------------------------
+
+
+\includegraphics[width = 5 cm]{./images/logo.jpg}\\[1cm] % Include a department/university logo - this will require the graphicx package
+
+ 
+%----------------------------------------------------------------------------------------
+
+\vfill % Fill the rest of the page with whitespace
+
+\end{titlepage}
+
+\newpage
+
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+\newpage
+
+# Introducción
+
+En este trabajo se ha desarrollado un sistema de recomendación sobre una base de datos de películas, que permite obtener recomendaciones siguiendo distintos criterios y evaluar mediante diferentes medidas la calidad de dichas recomendaciones. El sistema de recomendación se ha desarrollado en el lenguaje Python. Esta documentación muestra las principales características del sistema, cómo se han desarrollado los distintos métodos de recomendación, los resultados de la evaluación de dichos métodos y un breve manual de usuario que explica los principales comandos para trabajar con el sistema de recomendación.
+
+## Sistemas desarrollados
+
+Se han llevado a cabo varias propuestas de sistemas de recomendación, las cuales se muestran a continuación.
+
+- **Recomendación basada en popularidad.** Este esquema de recomendación es uno de los más simples, y consiste en recomendar películas a los usuarios en función de su valoración. También se pondera el número de votos para evitar recomendar películas con valoraciones muy altas pero muy pocos votos.
+- **Recomendación basada en contenido.** Este sistema sugiere películas a un determinado usuario en función de aquellas que el usuario haya visto y votado positivamente. La búsqueda de las películas se realiza analizando las semejanzas de contenido entre los distintos metadatos que ofrece la base de datos.
+- **Recomendación colaborativa.** Este sistema recomienda películas a un usuario en función a otros usuarios que han visto películas similares a las que el primer usuario también ha visualizado.
+- **Recomendación híbrida.** Combina los enfoques colaborativos y basados en contenido para intentar obtener recomendaciones más adecuadas para los usuarios.
+
+## Conjunto de datos utilizado
+
+La base de datos utilizada, denominada *The Movies Dataset*, está disponible en la plataforma Kaggle \cite{c1}. Consta de un conjunto de ficheros con diferente información sobre películas y valoraciones de usuarios. El principal fichero, `movies_metadata.csv`, contiene una amplia variedad de información sobre 45.000 películas del dataset MovieLens. Entre esta información podemos destacar título, resumen del argumento, géneros, presupuesto o valoración. Los ficheros `keywords.csv` y `credits.csv` están muy ligados a dichos metadatos, conteniendo información sobre las palabras clave y el elenco y equipo de rodaje de la película, respectivamente. El fichero `ratings.csv` contiene información sobre usuarios valorando (del 0 al 5) distintas películas. En total hay 26 millones de valoraciones, lo cual no es tratable computacionalmente desde ordenadores personales, por lo que la base de datos proporciona también un fichero `ratings.csv` con un subconjunto de 100.000 valoraciones de 671 usuarios. Finalmente, el fichero `links.csv` proporciona una conexión entre los índices de películas en el conjunto de metadatos y los índices de las películas valoradas en el conjunto de ratings.
+
+
+# Descripción de los sistemas elaborados
+
+## Recomendación basada en popularidad
+
+El objetivo de esta primera aproximación es simple: recomendar películas en base a una determinada métrica o sistema de puntuación. En este caso se muestran las $n$ mejores películas en función del voto medio, votos totales y de la puntuación de cada película.
+
+Podría haberse optado por escoger simplemente las mejores películas en base a su puntuación, pero en este caso las recomendaciones podrían verse muy penalizadas por películas votadas positivamente pero con un número de votos muy bajo, para las cuales su valoración real podría estar muy lejos de su valoración empírica. Cuando el número de votos aumenta, las valoraciones empíricas se aproximan mucho más a las valoraciones reales.
+			
+Para realizar esta tarea necesitamos saber los votos de cada película, el número de votos medio y establecer un cuantil (en nuestro caso hemos elegido 0.9), que representa el mínimo número de votos que necesita una película para estar dentro de la lista de recomendaciones. Con estos dos coeficientes calculamos un peso ponderado para cada película que va a ser su puntuación,
+			
+\[ WR = \frac{v R}{v+m} + \frac{m C}{v+m}, \]
+			
+donde $v$ es el número de votos para cada película, $m$ es el mínimo número de votos que necesita una película para estar en las recomendaciones, obtenido a partir del cuantil establecido, $R$ es la valoración media de la película y $C$ la valoración media global de todas las películas en la base de datos. Las películas con mayor peso ponderado serán las que conformen la lista de recomendaciones por popularidad.
+			
+## Recomendación basada en contenido
+
+Uno de los problemas que tiene la aproximación anterior es que distintos usuarios van a obtener la misma recomendación cuando no tiene por qué darse que a ambos les gusten las mismas películas. El objetivo del sistema basado en contenido es personalizar la recomendación en base a las películas que el usuario haya visto y valorado positivamente. Para ello, el sistema calcula la similitud entre las películas en base a un determinado criterio y sugiere a cada usuario las películas que considere más similares de acuerdo con sus gustos.
+
+En este sistema son fundamentales dos elementos: cómo extraer datos de las películas para poder medir distancias o similitudes entre ellos, y la métrica de distancia o similitud a usar. Para el segundo caso se ha utilizado la similitud del coseno, una métrica muy extendida en problemas de minería de texto. Para el primer caso, se han seguido dos procedimientos distintos, ambos basados en los datos textuales que proporciona la base de datos:
+
+- Extracción de datos a partir de la descripción de la película. Para este procedimiento se ha utilizado el resumen del argumento de la película, disponible en los metadatos. Tras tokenizar los resúmenes y eliminar las palabras de parada, se ha calculado el score TF-IDF para cada película, premiando así las palabras frecuentes en un mismo resumen, pero penalizando aquellas que aparecen comúnmente en la mayoría de resúmenes. Los datos numéricos obtenidos tras calcular el score TF-IDF son los utilizados para obtener las similitudes entre películas
+
+- Método basado en créditos, géneros y palabras clave: en este procedimiento, a partir de los metadatos especificados se extraen diversas características: el director de la película, los 3 actores principales, los 3 géneros principales y las 3 palabras clave principales. Estos elementos se preprocesan, transformándolos a minúsculas y eliminando espacios en blanco (para que un nombre y apellidos completo sea considerado una entidad propia). Después, todos los elementos se añaden a una bolsa de palabras. En este caso, en lugar del TF-IDF, la transformación numérica la realizamos contando las ocurrencias de cada término en la bolsa de palabras, pues todos los términos que la componen son relevantes en la película. A partir de las ocurrencias obtenemos las similitudes entre películas. A diferencia del primer procedimiento, este método permite detectar más fácilmente los gustos de un usuario por un determinado género, actor o director y recomendar otras películas de dicho género o en las que intervengan dicho actor o director.
+
+Una vez calculadas las similitudes entre las películas, para recomendar películas a un usuario simplemente tenemos que recuperar las más similares a las películas valoradas positivamente por este.
+
+## Recomendación colaborativa
+
+El problema que tiene el sistema anterior es que presenta dificultad para recomendar películas de diferentes géneros ya que su funcionamiento consiste en recomendar películas similares. El enfoque colaborativo (basado en usuarios) trata de solventar este problema. Para ello, tiene en cuenta el historial de valoraciones de películas de todos los usuarios. La premisa que sigue este sistema es que si a un usuario le han gustado determinadas películas, y otro usuario al que también le han gustado dichas películas ha valorado positivamente una película distinta, entonces al primer usuario también puede gustarle dicha película.
+
+Existen diversos métodos para aprender modelos de recomendación basados en usuarios. En nuestro sistema de recomendación hemos utilizado los métodos SVD y KNN, disponibles en la librería `surprise` \cite{c2}. Una vez aprendidos los modelos, pueden utilizarse para estimar la valoración que daría un usuario a una película que no ha visto, en función de todas las valoraciones de usuarios entrenadas. Por tanto, las recomendaciones resultantes para un usuario podemos obtenerlas como aquellas películas que no ha visto para las que la estimación de valoración es mayor.
+
+## Recomendación híbrida
+
+El sistema de recomendación híbrido combina las ideas de los dos sistemas anteriores, para intentar proporcionar una recomendación que se adapte mejor a cada usuarios. Existen diversos enfoques para combinar las recomendaciones de contenido y colaborativas. En nuestro caso, hemos obtenido en primer lugar un listado amplio de películas similares, obtenidas mediante recomendación basada en contenido, y sobre dichas películas se ha estimado la valoración que proporcionaría el usuario. La recomendación final se obtiene como el listado de películas con mejor valoración estimada de entre las películas similares recuperadas en el primer paso.
+
+# Evaluación y validación
+
+Los distintos sistemas de recomendación implementados se han evaluado mediante distintos criterios, para tratar de ver cuáles son sus capacidades reales a la hora de realizar buenas recomendaciones.
+
+Para evaluar estos sistemas, puesto que disponemos de valoraciones reales de usuarios, podemos seguir dos enfoques:
+
+- **Enfoque no supervisado.** Mediante la evaluación no supervisada, podemos analizar la lista total de recomendaciones obtenidas para el conjunto de usuarios en la base de datos. Sobre dicha lista podemos medir, por ejemplo, qué cantidad total de películas es capaz de recomendar el sistema, cómo de diferentes son las recomendaciones para cada usuario, o la variedad o capacidad de sorprender que presentan las recomendaciones.
+
+- **Enfoque supervisado.** Mediante la evaluación supervisada, podemos usar distintas técnicas de validación para separar los datos en entrenamiento y test, y evaluar sobre los datos de test cómo de buenas han sido las recomendaciones aprendidas usando el conjunto de entrenamiento.
+
+## Evaluación no supervisada
+
+En primer lugar realizamos una evaluación no supervisada de los sistemas de recomendación implementados. Para ello, utilizamos las siguientes medidas clásicas para sistemas de recomendación:
+
+- **Cobertura.** La cobertura mide el porcentaje de películas que el sistema es capaz de recomendar, dentro del catálogo completo. Se obtiene como
+\[ C = \frac{len(unique(L))}{N}, \]
+donde $L$ es la lista de recomendaciones para todos los usuarios, y $N$ el total de películas en la base de datos.
+- **Personalización.** La personalización mide la capacidad que tiene el sistema para recomendar películas diferentes a usuarios diferentes. Para calcularla, en primer lugar se obtiene una matriz binaria $M$ donde $M_{ij} = 1$ si y solo si el usuario $i$ ha visto la película $j$. Sobre esta matrix se calcula la similitud del coseno para todos los usuarios, y se obtiene su promedio, $s$. La personalización viene dada por $P = 1 - s$.
+- **Similitud intra-lista.** La similitud intra-lista mide cómo de parecidas son las recomendaciones para un mismo usuario. Para ello, simplemente se calcula, para cada lista de recomendaciones, la similitud media entre las películas recomendadas. La similitud intra-lista final viene dada por el promedio de las similitudes en las listas de cada usuario. Como métrica de similitud se han utilizado las dos métricas de similitud implementadas en el sistema basado en contenido: la basada en descripción y la basada en créditos, géneros y palabras clave.
+- **Novedad.** La novedad es una medida basada en la teoría de la información mide la cantidad media de capacidad de sorpresa que presentan las listas de recomendaciones. Para un usuario $U$, viene dada por
+\[N_U = \sum_{i \in rec(U)}{\frac{p_i \log p_i}{|rec(U)|}} ,\]
+donde $rec(U)$ es la lista de recomendaciones para el usuario $U$ y $p_i$ es la frecuencia de la película $i$ en la lista total de recomendaciones de todos los usuarios. Por tanto, $N_U$ mide la entropía o cantidad de incertidumbre que presentan las recomendaciones para el usuario $U$, con respecto a la distribución de frecuencias de los elementos recomendados, lo que puede entenderse como la capacidad de sorprender que tienen las recomendaciones. La novedad global se calcula como el promedio de los $N_U$ para cada usuario $U$.
+
+### Resultados
+
+Las Figuras \ref{fig:coverage}, \ref{fig:personalization}, \ref{fig:ils_overview}, \ref{fig:ils_cgk} y \ref{fig:novelty} comparan, respectivamente, las medidas de cobertura, personalización, similitud intra-lista de descripción, similitud intra-lista de créditos, géneros y autores, y novedad, obtenidas sobre los distintos sistemas de recomendación implementados. Se han utilizado las 10 primeras recomendaciones proporcionadas por cada sistema para cada usuario en el cálculo de estas medidas.
+
+```{r, echo=F, warning=F}
+system.names <- c("Popularity",
+                  "Content (overview)",
+                  "Content (c-g-k)",
+                  "Collaborative (SVD)",
+                  "Collaborative (KNN)",
+                  "Hybrid (overview, SVD)",
+                  "Hybrid (overview, KNN)",
+                  "Hybrid (c-g-k, SVD)",
+                  "Hybrid (c-g-k, KNN)"
+                  )
+system.names = factor(system.names, levels = system.names, ordered = T)
+no.superv <- data.frame(
+  coverage                      = c(2.144e-4, 3.140e-2, 2.089e-2, 8.686e-3, 1.951e-3, 4.439e-2, 4.733e-2, 2.548e-2, 2.728e-2),
+  personalization               = c(0.000000, 0.9521  , 0.9328  , 0.8477  , 0.4839  , 0.9567  , 0.9603  , 0.9532  , 0.9527  ),
+  intralist.similarity.overview = c(1.017e-2, 5.089e-2, 2.204e-2, 8.608e-3, 1.098e-2, 4.196e-2, 4.123e-2, 2.417e-2, 2.491e-2),
+  intralist.similarity.cgk      = c(8.786e-2, 7.197e-2, 0.2045  , 7.963e-2, 8.813e-2, 7.055e-2, 7.007e-2, 0.1979  , 0.2025  ),
+  novelty                       = c(0.000000, 1.0974  , 1.4743  , 2.3698  , 2.4060  , 0.9289  , 0.8528  , 1.2155  , 1.2094  ),
+  System = system.names,
+  row.names = system.names
+)
+
+```
+
+```{r, echo=F, warning=F, fig.cap="Cobertura obtenida en los distintos sistemas de recomendación. \\label{fig:coverage}"}
+library(ggplot2)
+ggplot(no.superv, aes(x = System, y=coverage, fill=System)) + geom_bar(stat = "identity") + scale_fill_brewer(palette="Spectral") + theme(axis.text.x = element_blank()) + ylab("Coverage")
+```
+
+```{r, echo=F, warning=F, fig.cap="Personalización obtenida en los distintos sistemas de recomendación. \\label{fig:personalization}"}
+library(ggplot2)
+ggplot(no.superv, aes(x = System, y=personalization, fill=System)) + geom_bar(stat = "identity") + scale_fill_brewer(palette="Spectral") + theme(axis.text.x = element_blank()) + ylab("Personalization")
+```
+
+```{r, echo=F, warning=F, fig.cap="Similitud intra-lista con la similitud basada en argumento obtenida en los distintos sistemas de recomendación. \\label{fig:ils_overview}"}
+library(ggplot2)
+ggplot(no.superv, aes(x = System, y=intralist.similarity.overview, fill=System)) + geom_bar(stat = "identity") + scale_fill_brewer(palette="Spectral") + theme(axis.text.x = element_blank()) + ylab("Intra-list similarity (overview)")
+```
+
+```{r, echo=F, warning=F, fig.cap="Similitud intra-lista con la similitud basada en créditos, géneros y palabras clave obtenida en los distintos sistemas de recomendación. \\label{fig:ils_cgk}"}
+library(ggplot2)
+ggplot(no.superv, aes(x = System, y=intralist.similarity.cgk, fill=System)) + geom_bar(stat = "identity") + scale_fill_brewer(palette="Spectral") + theme(axis.text.x = element_blank()) + ylab("Intra-list similarity (c-g-k)")
+```
+
+```{r, echo=F, warning=F, fig.cap="Novedad obtenida en los distintos sistemas de recomendación. \\label{fig:novelty}"}
+library(ggplot2)
+ggplot(no.superv, aes(x = System, y=novelty, fill=System)) + geom_bar(stat = "identity") + scale_fill_brewer(palette="Spectral") + theme(axis.text.x = element_blank()) + ylab("Novelty")
+```
+
+Si nos fijamos en la cobertura, vemos que en general los valores son muy bajos, estando el sistema con mayor cobertura en torno al 4.5 \% del total de películas. Sin embargo, si tenemos en cuenta que el conjunto de datos de usuarios utilizado es reducido y está restringido a valoraciones sobre 9000 películas de la base de datos, la cobertura con respecto a esas 9000 películas sería 5 veces más a las mostradas, llegando el sistema con mayor cobertura al 22.5 \% del total de películas. Podemos ver que, como era de esperar, el sistema basado en popularidad apenas tiene cobertura, pues recomenda siempre las mismas 10 películas. También vemos que la cobertura de los sistemas colaborativos es bastante baja, especialmente el que utiliza KNN, mientras que las coberturas más altas se alcanzan con los sistemas que utilizan la similitud de las descripciones de las películas, tanto el de contenido, como (especialmente) los dos híbridos. Esto muestra que la similitud basada en las descripciones de películas es capaz de expandir en mayor medida el rango de películas que se muestran en las recomendaciones.
+
+Si observamos la personalización, podemos ver que los valores son en general bastante altos, con la excepción del basado en popularidad, cuya personalización es nula, al proporcionar siempre las mismas recomendaciones, y el colaborativo que utiliza KNN, que no llega a superar el valor de 0.5. Todos los sistemas basados en contenido e híbridos llegan a superar el valor de 0.9 de personalización.
+
+En cuanto a las similitudes intra-lista, observamos unos valores bastante bajos en general. Esto muestra que la lista de recomendaciones proporcionada a cada usuario suele ser diversa, teniendo en general películas variadas y poco parecidas entre sí. También podemos ver que la similitud intra-lista se hace claramente superior en los sistemas que utilizan la misma medida de similitud para elaborar las recomendaciones, lo cual es razonable, pues las películas recomendadas por esos criterios van a ser más similares a la hora de ser evaluadas de nuevo por los correspondientes criterios. Aun así, los valores en estos casos también son bastante bajos.
+
+Finalmente, si observamos la medida de novedad, podemos ver una vez más cómo es nula para el sistema basado en popularidad, como consecuencia de recomendar siempre lo mismo, pues estas recomendaciones no introducen ninguna capacidad de sorpresa. En este caso vemos cómo se destacan de forma clara los dos sistemas colaborativos. Esto puede deberse a que, mientras que los sistemas basados en contenido y los híbridos parten de una lista de películas similares para realizar las recomendaciones, los colaborativos no miran semejanzas entre películas, y por tanto en sus recomendaciones pueden aparecer películas con una mayor probabilidad de sorprender al usuario.
+
+## Evaluación supervisada
+
+Finalmente realizamos la evaluación supervisada de los distintos sistemas implementados. Para ello se ha realizado una validación cruzada de 5 particiones, con respecto al conjunto de usuarios y valoraciones. En cada partición se utilizan 4 de las particiones de usuarios para entrenar (si es necesario, cuando el sistema dispone de una parte colaborativa) y la partición restante para evaluar los resultados. Dentro de la partición con usuarios de test, dividimos las películas en dos partes: películas vistas, que se usarán para realizar las recomendaciones sobre los usuarios test, y películas test, que se usarán para comparar con las recomendaciones. La división de las películas sobre los usuarios test se ha realizado al 50 \% y mediante el timestamp presente en el conjunto de datos, de forma que la mitad de valoraciones más antiguas se utilizará para generar recomendaciones, mientras que la mitad más reciente se utilizará para validarlas. Puesto que las valoraciones de los usuarios se establecen mediante un ranking entre 0 y 5, se ha establecido un umbral de relevancia de 3.5, de forma que una película se considera relevante para un usuario si ha sido valorada por este con una puntuación mayor o igual a 3.5. Las medidas de evaluación empleadas son las medidas clásicas supervisadas sobre sistemas de recomendación:
+
+- **Precisión.** Mide la cantidad de películas recomendadas relevantes entre el total de películas recomendadas al usuario.
+- **Recall.** Mide la cantidad de películas recomendadas relevantes entre el total de películas que el usuario ha considerado relevantes.
+
+Aunque estas dos medidas son de las más utilizadas sobre sistemas de recomendación, con nuestros datos pueden no resultar muy adecuadas, puesto que las películas usadas como test no han estado nunca sometidas al efecto del sistema de recomendación, y por tanto son independientes de este. Si las películas de test se hubieran recogido tras implantar el sistema, la precisión y el recall sí estarían reflejando de forma apropiada el comportamiento del sistema. Por ello, se ha optado por una tercera medida que puede resultar algo más adecuada en esta situación:
+
+- **Precisión restringida.** Mide la cantidad de películas recomendadas relevantes entre el total de películas recomendadas que ha visto el usuario.
+
+Esta última medida nos permite observar cuáles de las recomendaciones dentro del conocimiento del usuario habrían resultado relevantes para este.
+
+Es interesante también restringir estas medidas a las primeras $k$ recomendaciones. Esto permite valorar la calidad de la ordenación del ranking de recomendaciones. Por ello mostraremos los resultados de precisión, recall y precisión restringida a las top $k$ recomendaciones, para $k$ desde 1 hasta 20.
+
+### Resultados
+
+Las Figuras \ref{fig:precision}, \ref{fig:recall} y \ref{fig:prec_w} muestran, respectivamente, los valores de precisión, recall y precisión restringida a las películas vistas, obtenidos para tamaños de lista de recomendación entre 1 y 20.
+
+```{r, echo=F, warning=F}
+precision <- data.frame(
+  k = 1:20,
+  popularity =                    c(5.494e-3, 5.494e-3, 1.006e-2, 1.305e-2, 1.700e-2, 
+                                    2.298e-2, 2.925e-2, 3.026e-2, 3.223e-2, 3.479e-2, 
+                                    3.747e-2, 4.018e-2, 4.610e-2, 4.840e-2, 5.340e-2, 
+                                    5.427e-2, 5.427e-2, 5.760e-2, 5.982e-2, 6.276e-2),
+  
+  content.overview =             c(2.342e-3, 5.617e-3, 7.975e-3, 1.030e-2, 1.150e-2,
+                                    1.250e-2, 1.427e-2, 1.565e-2, 1.647e-2, 1.732e-2,
+                                    1.793e-2, 1.873e-2, 1.945e-2, 2.005e-2, 2.107e-2,
+                                    2.170e-2, 2.268e-2, 2.328e-2, 2.383e-2, 2.427e-2),
+  
+  content.cgk =                   c(4.256e-3, 7.862e-3, 1.099e-2, 1.467e-2, 1.760e-2,
+                                    2.013e-2, 2.323e-2, 2.562e-2, 2.794e-2, 2.996e-2,
+                                    3.227e-2, 3.434e-2, 3.623e-2, 3.820e-2, 3.987e-2,
+                                    4.138e-2, 4.269e-2, 4.398e-2, 4.529e-2, 4.659e-2),
+  
+  collaborative.svd =             c(5.960e-3, 1.065e-2, 1.455e-2, 1.637e-2, 1.836e-2,
+                                    2.062e-2, 2.332e-2, 2.610e-2, 2.855e-2, 3.079e-2,
+                                    3.250e-2, 3.557e-2, 3.765e-2, 3.948e-2, 4.146e-2,
+                                    4.350e-2, 4.583e-2, 4.887e-2, 5.160e-2, 5.433e-2),
+  
+  collaborative.knn =             c(4.705e-3, 5.146e-3, 5.428e-3, 5.940e-3, 6.405e-3,
+                                    6.880e-3, 7.105e-3, 7.708e-3, 7.988e-3, 8.346e-3,
+                                    8.766e-3, 9.072e-3, 9.383e-3, 9.835e-3, 1.048e-2,
+                                    1.097e-2, 1.116e-2, 1.161e-2, 1.176e-2, 1.236e-2),
+  
+  hybrid.svd.overview =           c(6.945e-3, 1.184e-2, 1.546e-2, 1.762e-2, 1.910e-2,
+                                    2.069e-2, 2.117e-2, 2.140e-2, 2.177e-2, 2.193e-2, 
+                                    2.209e-2, 2.225e-2, 2.233e-2, 2.240e-2, 2.240e-2, 
+                                    2.264e-2, 2.271e-2, 2.271e-2, 2.309e-2, 2.354e-2),
+  
+  hybrid.overview.knn =            c(2.405e-3, 3.073e-3, 3.509e-3, 4.019e-3, 4.477e-3, 
+                                    4.977e-3, 5.416e-3, 5.972e-3, 6.570e-3, 7.489e-3, 
+                                    8.043e-3, 9.061e-3, 9.776e-3, 1.291e-2, 1.371e-2, 
+                                    1.432e-2, 1.517e-2, 1.592e-2, 1.731e-2, 1.907e-2),
+  
+  
+  hybrid.svd.cgk =                c(7.353e-3, 1.429e-2, 1.933e-2, 2.271e-2, 2.598e-2,
+                                    2.894e-2, 3.159e-2, 3.344e-2, 3.560e-2, 3.728e-2,
+                                    3.831e-2, 3.959e-2, 3.991e-2, 4.097e-2, 4.149e-2,
+                                    4.223e-2, 4.348e-2, 4.423e-2, 4.587e-2, 4.675e-2),
+  
+
+  
+  hybrid.cgk.knn =                c(4.248e-3, 6.280e-3, 7.794e-3, 9.448e-3, 1.109e-2, 
+                                    1.207e-2, 1.344e-2, 1.483e-2, 1.612e-2, 1.743e-2,
+                                    1.894e-2, 2.061e-2, 2.250e-2, 2.588e-2, 2.795e-2,
+                                    3.026e-2, 3.228e-2, 3.460e-2, 3.699e-2, 3.995e-2)
+  
+  
+  
+)
+
+precision.watched <- data.frame(
+  k = 1:20,
+  popularity =                    c(0.1187, 0.1992, 0.2413, 0.2697, 0.2877, 
+                                    0.3024, 0.3113, 0.3174, 0.3223, 0.3247, 
+                                    0.3263, 0.3281, 0.3293, 0.3296, 0.3301, 
+                                    0.3303, 0.3303, 0.3303, 0.3303, 0.3303),
+  
+  content.overview =              c(0.4449, 0.5809, 0.6192, 0.6331, 0.6424,
+                                    0.6471, 0.6490, 0.6490, 0.6490, 0.6490,
+                                    0.6490, 0.6490, 0.6490, 0.6490, 0.6490,
+                                    0.6490, 0.6490, 0.6490, 0.6490, 0.6490),
+  
+  content.cgk =                   c(0.3421, 0.4852, 0.5352, 0.5704, 0.5916,
+                                    0.6072, 0.6186, 0.6251, 0.6280, 0.6292,
+                                    0.6292, 0.6295, 0.6295, 0.6295, 0.6297,
+                                    0.6297, 0.6297, 0.6297, 0.6297, 0.6297),
+  
+  
+  collaborative.svd =             c(0.5406, 0.7054, 0.7747, 0.8060, 0.8233,
+                                    0.8322, 0.8379, 0.8425, 0.8451, 0.8467,
+                                    0.8471, 0.8475, 0.8479, 0.8481, 0.8483,
+                                    0.8483, 0.8483, 0.8483, 0.8483, 0.8483),
+  
+  collaborative.knn =             c(0.4850, 0.5525, 0.5713, 0.5806, 0.5829,
+                                    0.5852, 0.5864, 0.5876, 0.5876, 0.5876,
+                                    0.5876, 0.5876, 0.5876, 0.5876, 0.5876,
+                                    0.5876, 0.5876, 0.5876, 0.5876, 0.5876),
+  
+  hybrid.svd.overview =           c(0.5039, 0.6299, 0.6726, 0.6876, 0.6984,
+                                    0.7018, 0.7030, 0.7030, 0.7030, 0.7030, 
+                                    0.7030, 0.7030, 0.7030, 0.7030, 0.7030, 
+                                    0.7030, 0.7030, 0.7030, 0.7030, 0.7030),
+  
+  hybrid.overview.knn =            c(0.4533, 0.5806, 0.6061, 0.6182, 0.6262, 
+                                    0.6285, 0.6285, 0.6285, 0.6285, 0.6285, 
+                                    0.6285, 0.6285, 0.6285, 0.6285, 0.6285, 
+                                    0.6285, 0.6285, 0.6285, 0.6285, 0.6285),
+  
+  
+  hybrid.svd.cgk =                c(0.3875, 0.5294, 0.5908, 0.6304, 0.6499,
+                                    0.6641, 0.6756, 0.6792, 0.6813, 0.6835,
+                                    0.6841, 0.6844, 0.6844, 0.6847, 0.6847,
+                                    0.6847, 0.6847, 0.6847, 0.6847, 0.6847),
+  
+  
+  
+  hybrid.cgk.knn =                c(0.3920, 0.4941, 0.5498, 0.5850, 0.6020,
+                                    0.6175, 0.6292, 0.6335, 0.6342, 0.6351,
+                                    0.6360, 0.6366, 0.6369, 0.6369, 0.6369, 
+                                    0.6369, 0.6369, 0.6369, 0.6369, 0.6369)
+  
+  
+  
+)
+
+
+recall <- data.frame(
+  k = 1:20,
+  
+  popularity = c(5.596e-3, 5.596e-3, 9.538e-3, 1.216e-2, 1.521e-2,
+                  2.002e-2, 2.570e-2, 2.628e-2, 2.737e-2, 2.881e-2,
+                  3.081e-2, 3.214e-2, 3.709e-2, 3.823e-2, 4.189e-2,
+                  4.237e-2, 4.237e-2, 4.505e-2, 4.611e-2, 4.748e-2),
+  
+  content.overview = c(2.188e-3, 3.982e-3, 4.824e-3, 5.986e-3, 6.712e-3,
+                        7.089e-3, 7.865e-3, 8.757e-3, 9.180e-3, 9.539e-3,
+                        9.683e-3, 1.004e-2, 1.021e-2, 1.046e-2, 1.096e-2,
+                        1.113e-2, 1.116e-2, 1.199e-2, 1.211e-2, 1.224e-2),
+  
+  content.cgk = c(1.644e-3, 4.028e-3, 5.895e-3, 8.350e-3, 9.819e-3,
+                   1.120e-2, 1.237e-2, 1.323e-2, 1.394e-2, 1.450e-2,
+                   1.544e-2, 1.614e-2, 1.669e-2, 1.734e-2, 1.792e-2,
+                   1.852e-2, 1.885e-2, 1.946e-2, 1.990e-2, 2.097e-2),
+  
+  collaborative.svd = c(5.456e-3, 8.360e-3, 1.116e-2, 1.204e-2, 1.270e-2,
+                         1.371e-2, 1.487e-2, 1.727e-2, 1.874e-2, 2.062e-2,
+                         2.222e-2, 2.472e-2, 2.545e-2, 2.605e-2, 2.710e-2,
+                         2.818e-2, 2.927e-2, 3.088e-2, 3.208e-2, 3.318e-2),
+  
+  collaborative.knn = c(3.147e-3, 3.281e-3, 3.339e-3, 3.447e-3, 3.607e-3, 
+                         3.707e-3, 3.738e-3, 4.006e-3, 4.097e-3, 4.186e-3,
+                         4.303e-3, 4.344e-3, 4.439e-3, 4.536e-3, 5.056e-3,
+                         5.148e-3, 5.258e-3, 5.452e-3, 5.4711e-3, 5.774e-3),
+  
+  hybrid.overview.svd = c(3.709e-3, 6.787e-3, 8.368e-3, 9.136e-3, 9.870e-3,
+                           1.073e-2, 1.091e-2, 1.098e-2, 1.120e-2, 1.125e-2,
+                           1.132e-2, 1.137e-2, 1.137e-2, 1.140e-2, 1.140e-2,
+                           1.150e-2, 1.155e-2, 1.155e-2, 1.178e-2, 1.193e-2),
+  
+  hybrid.overview.knn = c(2.327e-3, 2.717e-3, 2.884e-3, 3.013e-3, 3.226e-3,
+                           3.388e-3, 3.510e-3, 3.630e-3, 4.002e-3, 4.479e-3,
+                           4.610e-3, 5.109e-3, 5.285e-3, 6.845e-3, 7.203e-3,
+                           7.347e-3, 7.706e-3, 8.101e-3, 8.994e-3, 9.770e-3),  
+  
+  hybrid.cgk.svd = c(4.330e-3, 8.105e-3, 1.037e-2, 1.173e-2, 1.300e-2,
+                      1.423e-2, 1.518e-2, 1.591e-2, 1.688e-2, 1.765e-2,
+                      1.805e-2, 1.856e-2, 1.865e-2, 1.893e-2, 1.907e-2,
+                      1.931e-2, 1.967e-2, 1.990e-2, 2.035e-2, 2.062e-2),
+  
+  
+  hybrid.cgk.knn = c(1.744e-3, 2.531e-3, 3.088e-3, 4.080e-3, 4.663e-3,
+                      5.028e-3, 6.199e-3, 6.733e-3, 7.345e-3, 7.675e-3,
+                      8.272e-3, 8.852e-3, 9.407e-3, 1.149e-2, 1.218e-2,
+                      1.312e-2, 1.368e-2, 1.439e-2, 1.526e-2, 1.631e-2)
+  
+  
+)
+
+names(precision) <- c("k", as.character(system.names))
+names(recall) <- c("k", as.character(system.names))
+names(precision.watched) <- c("k", as.character(system.names))
+
+library(reshape2)
+nprec <- melt(precision, id.vars=1, variable.name = "System", value.name = "Value")
+nrec <- melt(recall, id.vars=1, variable.name = "System", value.name = "Value")
+npw <- melt(precision.watched, id.vars = 1, variable.name = "System", value.name = "Value")
+```
+
+```{r, echo=F, warning=F, fig.cap="Precisión obtenida con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:precision}"}
+ggplot(nprec, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+```
+
+```{r, echo=F, warning=F, fig.cap="Recall obtenido con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:recall}"}
+ggplot(nrec, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+```
+
+```{r, echo=F, warning=F, fig.cap="Precisión restringida obtenida con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:prec_w}"}
+ggplot(npw, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+```
+
+Si observamos las gráficas de precisión y recall vemos que, como se comentó anteriormente, no tienen capacidad para reflejar las características de los sistemas de recomendación implementados. Los valores son muy bajos, pero esto se debe a que el sistema de recomendación no ha intervenido en la generación de los datos de test. Las películas vistas y valoradas por los usuarios son independientes de lo que hayan podido sugerir cualquiera de los sistemas. Esto lleva a que en general, la mayoría de películas recomendadas no han llegado a ser vistas pero esto no quiere decir que puedan ser irrelevantes para el usuario. Si el usuario llega a tener conocimiento de estas películas es bastante posible que las hubiera considerado relevantes. Como ejemplo podemos ver que el sistema basado en popularidad suele alcanzar los valores de precisión y recall más altos, pues las películas más populares suelen ser conocidas por los usuarios y llegan a ser valoradas (normalmente de forma positiva) más veces.
+
+Por tanto, nos centramos en la precisión restringida. En este caso vemos, efectivamente unos valores razonables, con la excepción del sistema basado en popularidad. Este sistema apenas supera el 30 \% de precisión restringida, lo que muestra que falta calidad en sus recomendaciones. El que alcanza el valor más alto de precisión restringida con diferencia es el sistema colaborativo con SVD, rozando el 0.85 desde la lista con $k=10$ recomendaciones. Por tanto, de las películas recomendadas que ha visto el usuario a partir de la lista de 10 elementos, casi el 85 \% suelen gustarle de media. El resto de sistemas suelen alcanzar precisiones restringidas en torno al 60 \% y 70 \%, mostrando que tienen una tendencia algo mayor a equivocarse con sus recomendaciones. También hay que notar cómo evoluciona la precisión conforme aumenta la lista de recomendaciones. La recomendación top 1 toma valores de precisión entre el 30 \% y el 55 \% según el sistema, pero conforme aumenta la lista de recomendaciones la precisión crece de forma rápida hasta estabilizarse en un valor, normalmente antes de alcanzar el tamaño $k = 10$.
+
+Por tanto, hemos visto cómo las distintas medidas utilizadas nos muestran que los distintos sistemas son capaces de destacar en cualidades concretas, dentro de las cualidades deseadas en un sistema de recomendación. Bajo el enfoque supervisado, dentro de las limitaciones de los conjuntos de validación empleados, el que parece proporcionar mejores resultados es el sistema colaborativo con SVD.
+
+# Manual de usuario
+
+\newpage
+
+\begin{thebibliography}{X}
+	\bibitem{c1} \url{https://www.kaggle.com/rounakbanik/the-movies-dataset}
+	\bibitem{c2} \url{http://surpriselib.com/}
+\end{thebibliography}

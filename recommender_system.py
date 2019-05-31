@@ -724,5 +724,5 @@ if __name__ == "__main__":
 
     recsys = RecommenderSystem()
 
-    recsys.set_overview_similarity_metric()
-    recsys.set_svd_user_training()
+    # recsys.set_overview_similarity_metric()
+    # recsys.set_svd_user_training()
