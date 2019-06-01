@@ -342,7 +342,7 @@ class RecommenderSystem:
             print("No positive recommendations for this user under this threshold.")
             return pd.DataFrame([], columns=['title', 'similarity'])
 
-    def get_hybrid_recommendations_by_index(self, userId, index, top=10, content_top=25, user_training=None):
+    def get_hybrid_cascade_recommendations_by_index(self, userId, index, top=10, content_top=25, user_training=None):
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(index, int):
@@ -371,7 +371,7 @@ class RecommenderSystem:
         else:
             return [], []
 
-    def get_hybrid_recommendations(self, userId, title, top=10, content_top=25, user_training=None):
+    def get_hybrid_cascade_recommendations(self, userId, title, top=10, content_top=25, user_training=None):
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(title, str):
@@ -381,24 +381,94 @@ class RecommenderSystem:
         # Get the index of the movie that matches the title
         idx = list(self.indices[clean_title])
 
-        movie_indices, estimations = self.get_hybrid_recommendations_by_index(userId, idx, top, content_top, user_training)
+        movie_indices, estimations = self.get_hybrid_cascade_recommendations_by_index(userId, idx, top, content_top, user_training)
         results = pd.concat([self.metadata['title'].iloc[movie_indices], estimations], axis=1)
 
         return results
 
-    def get_hybrid_recommendations_for_user_by_index(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
+    def get_hybrid_cascade_recommendations_for_user_by_index(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
         try:
-            return self.get_hybrid_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, content_top, user_training)
+            return self.get_hybrid_cascade_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, content_top, user_training)
         except:
             print("No positive recommendations for this user under this threshold.")
             return pd.DataFrame([], columns=['title', 'similarity'])
 
-    def get_hybrid_recommendations_for_user(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
+    def get_hybrid_cascade_recommendations_for_user(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
         try:
-            return self.get_hybrid_recommendations(userId, self.get_liked_movies(userId, positiveThresh, ratings)['title'], top, content_top, user_training)
+            return self.get_hybrid_cascade_recommendations(userId, self.get_liked_movies(userId, positiveThresh, ratings)['title'], top, content_top, user_training)
         except:
             print("No positive recommendations for this user under this threshold.")
             return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_hybrid_weighted_recommendations_by_index(self, userId, index, top=10, ratings=None, user_training=None):
+        if self.similarity is None:
+            raise ValueError("A similarity metric must be defined.")
+        if isinstance(index, int):
+            index = [index]
+        if user_training is None:
+            user_training = self.user_training
+        if ratings is None:
+            ratings = self.ratings
+
+        if index:
+            # Score content-based
+            sim_scores = np.array(list(enumerate(np.asarray(self.similarity[index].tocsc().max(axis=0).todense()).ravel())))
+            sim_scores[index, 1] = -100.0
+            sim_scores = pd.DataFrame(sim_scores, columns=['index', 'sim_score'])
+
+            # nos quedamos unicamente con las películas que no haya visto userId.
+            # tomamos unicamente aquellas peliculas que no ha visto
+            condition = ratings[ratings['userId'] == userId]
+            movieIdSeen = condition['movieId'].unique()
+            allmovieId = ratings['movieId'].unique()
+            movieIds = np.setdiff1d(allmovieId, movieIdSeen)
+            ids = self.di_map.loc[movieIds]['id']
+            movie_indices = movie_indices = self.meta_map.loc[ids]
+            # buscamos en el dataset con todos los datos las peliculas cuyo Id corresponde con el de la condición anterior y obtenemos los datos deseados
+            movies = self.metadata.loc[movie_indices][['title', 'vote_count', 'vote_average', 'id']]
+            # movies = movies.dropna()
+            movies['estimation'] = movies['id'].apply(lambda x: user_training.predict(userId, self.indices_map.loc[x]['movieId']).est)
+            movies = movies.merge(sim_scores, left_index=True, right_on='index')
+            movies['estimation'] /= 5
+
+            counts = ratings.groupby('userId').count()['movieId']
+            alpha = 0.1
+            lmbda = alpha + (1 - 2 * alpha) * sum(counts.loc[userId] >= counts) / counts.count()
+            movies['hybrid_score'] = (1 - lmbda) * movies['sim_score'] + lmbda * movies['estimation']
+            movies = movies.sort_values('hybrid_score', ascending=False)
+
+            return list(movies.index)[:top], movies['hybrid_score'].head(top)
+        else:
+            return [], []
+
+    def get_hybrid_weighted_recommendations(self, userId, title, top=10, ratings=None, user_training=None):
+        if self.similarity is None:
+            raise ValueError("A similarity metric must be defined.")
+        if isinstance(title, str):
+            title = [title]
+
+        clean_title = [self._clean_title(t) for t in title]
+        # Get the index of the movie that matches the title
+        idx = list(self.indices[clean_title])
+
+        movie_indices, scores = self.get_hybrid_weighted_recommendations_by_index(userId, idx, top, ratings, user_training)
+        results = pd.concat([self.metadata['title'].iloc[movie_indices], scores], axis=1)
+
+        return results
+
+    def get_hybrid_weighted_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
+        try:
+            return self.get_hybrid_weighted_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, ratings, user_training)
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
+
+    def get_hybrid_weighted_recommendations_for_user(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
+        # try:
+            return self.get_hybrid_weighted_recommendations(userId, self.get_liked_movies(userId, positiveThresh, ratings)['title'], top, ratings, user_training)
+        # except:
+        #    print("No positive recommendations for this user under this threshold.")
+        #    return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_watched_movies_by_index(self, userId, ratings=None):
         if ratings is None:
@@ -492,12 +562,21 @@ class RecommenderSystem:
 
         return self._evaluate_recommendations(rec_list)
 
-    def evaluate_hybrid_recommendations(self, top=10, content_top=25, positiveThresh=4.0):
+    def evaluate_hybrid_cascade_recommendations(self, top=10, content_top=25, positiveThresh=4.0):
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
 
-        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_recommendations_for_user_by_index(uid, top, content_top, positiveThresh)[0] for uid in user_ids]
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_cascade_recommendations_for_user_by_index(uid, top, content_top, positiveThresh)[0] for uid in user_ids]
+
+        return self._evaluate_recommendations(rec_list)
+
+    def evaluate_hybrid_weighted_recommendations(self, top=10, positiveThresh=4.0):
+        print("Obtaining recommendations for every user (this may take a while)...")
+        user_ids = self.ratings['userId'].unique()
+        nusers = len(user_ids)
+
+        rec_list = [print(str(uid) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_weighted_recommendations_for_user_by_index(uid, top, positiveThresh)[0] for uid in user_ids]
 
         return self._evaluate_recommendations(rec_list)
 
@@ -650,7 +729,7 @@ class RecommenderSystem:
                 'recall': rec.mean(),
                 'precision_watched': prec_w.mean()}
 
-    def validate_hybrid_recommendations(self, n_folds=5, movie_train=0.8, top=10, content_top=25, positiveThresh=4.0, random_state=28):
+    def validate_hybrid_cascade_recommendations(self, n_folds=5, movie_train=0.8, top=10, content_top=25, positiveThresh=4.0, random_state=28):
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -673,7 +752,57 @@ class RecommenderSystem:
             print("Obtaining recommendations for every user (this may take a while)...")
             user_ids = test_pre['userId'].unique()
             nusers = len(user_ids)
-            rec_preds = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_recommendations_for_user_by_index(uid, top, content_top, positiveThresh, test_pre, alg)[0] for j, uid in enumerate(user_ids)]
+            rec_preds = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_cascade_recommendations_for_user_by_index(uid, top, content_top, positiveThresh, test_pre, alg)[0] for j, uid in enumerate(user_ids)]
+            print("Obtaining test values (1/3)...")
+            rec_real = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_liked_movies_by_index(uid, positiveThresh, test_pos)[0] for j, uid in enumerate(user_ids)]
+            print("Obtaining test values (2/3)...")
+            rec_watched = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_watched_movies_by_index(uid, test_pos)[0] for j, uid in enumerate(user_ids)]
+            print("Obtaining test values (3/3)...")
+            rec_preds_watched = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or np.intersect1d(rec_preds[j], rec_watched[j]) for j, uid in enumerate(user_ids)]
+            # print("RECALL: ", recall(rec_preds, rec_real))
+            # print("PRECISION: ", precision(rec_preds, rec_real))
+            print("Evaluating...")
+            for k in range(1, top + 1):
+                prec[i, k - 1] = precision(rec_real, rec_preds, k=k)
+                rec[i, k - 1] = recall(rec_real, rec_preds, k=k)
+                prec_w[i, k - 1] = precision(rec_real, rec_preds_watched, k=k)
+                # print("* P@" + str(k), precision(rec_real, rec_preds, k=k))
+                # print("* R@" + str(k), recall(rec_real, rec_preds, k=k))
+                # print("* P|w@" + str(k), precision(rec_real, rec_preds_watched, k=k))
+                # print("* R|w@" + str(k), recall(rec_real, rec_preds_watched, k=k))  # R|w = R
+
+        prec = pd.DataFrame(prec, columns=range(1, top + 1))
+        rec = pd.DataFrame(rec, columns=range(1, top + 1))
+        prec_w = pd.DataFrame(prec_w, columns=range(1, top + 1))
+
+        return {'precision': prec.mean(),
+                'recall': rec.mean(),
+                'precision_watched': prec_w.mean()}
+
+    def validate_hybrid_weighted_recommendations(self, n_folds=5, movie_train=0.8, top=10, positiveThresh=4.0, random_state=28):
+        self._partitionate(n_folds, movie_train, random_state)
+        prec = np.empty([n_folds, top])
+        rec = np.empty([n_folds, top])
+        prec_w = np.empty([n_folds, top])
+        for i, (train, test_pre, test_pos) in enumerate(self.partitions):
+            print("Validating Fold " + str(i + 1) + "...")
+            print("Training...")
+            # Chanchullo para solucionar la falta de funcionalidad de surprise
+            df = DatasetUserFolds([('recommender_system.py', 'recommender_system.py')], Reader())
+            df.raw_folds = lambda: self._raw_folds_surprise(train, test_pre)
+            if self.user_training_type == 'svd':
+                alg = SVD()
+            elif self.user_training_type == 'knn':
+                alg = KNNBasic(80, 20)
+            for train_s, test_s in df.folds():
+                np.random.seed(random_state)
+                random.seed(random_state)
+                alg.fit(train_s)
+
+            print("Obtaining recommendations for every user (this may take a while)...")
+            user_ids = test_pre['userId'].unique()
+            nusers = len(user_ids)
+            rec_preds = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_hybrid_weighted_recommendations_for_user_by_index(uid, top, positiveThresh, test_pre, alg)[0] for j, uid in enumerate(user_ids)]
             print("Obtaining test values (1/3)...")
             rec_real = [print(str(j) + " / " + str(nusers) + "\r", end='\r') or self.get_liked_movies_by_index(uid, positiveThresh, test_pos)[0] for j, uid in enumerate(user_ids)]
             print("Obtaining test values (2/3)...")
@@ -717,17 +846,17 @@ class RecommenderSystem:
 # # Aproximación híbrida
 # > recsys.set_XXXX_similarity_metric()
 # > recsys.set_XXXX_user_training()
-# > recsys.get_hybrid_recommendations(1, 'The Dark Knight Rises')
+# > recsys.get_hybrid_cascade_recommendations(1, 'The Dark Knight Rises')
 
 # Use these before fitting an algorithm
 # np.random.seed(28)
 # random.seed(28)
 
-# if __name__ == "__main__":
-#     np.random.seed(28)
-#     random.seed(28)
+if __name__ == "__main__":
+    np.random.seed(28)
+    random.seed(28)
 
-#     recsys = RecommenderSystem()
+    recsys = RecommenderSystem()
 
-#     recsys.set_overview_similarity_metric()
-#     recsys.set_svd_user_training()
+    recsys.set_overview_similarity_metric()
+    recsys.set_svd_user_training()

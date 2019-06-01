@@ -33,8 +33,10 @@ print(recsys.validate_collaborative_recommendations(n_folds=5, movie_train=0.5, 
 
 # Evaluación de híbrido con overview similarity y SVD
 print("Híbrido con overview similarity y SVD")
-print(recsys.evaluate_hybrid_recommendations(top=10, content_top=25, positiveThresh=3.5))
-print(recsys.validate_hybrid_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_cascade_recommendations(top=10, content_top=25, positiveThresh=3.5))
+print(recsys.validate_hybrid_cascade_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_weighted_recommendations(top=10, positiveThresh=3.5))
+print(recsys.validate_hybrid_weighted_recommendations(n_folds=5, movie_train=0.5, top=20, positiveThresh=3.5, random_state=28))
 
 np.random.seed(28)
 random.seed(28)
@@ -47,8 +49,10 @@ print(recsys.validate_content_recommendations(n_folds=5, movie_train=0.5, top=20
 
 # Evaluación de híbrido con cgk similarity y SVD
 print("Híbrido con cgk similarity y SVD")
-print(recsys.evaluate_hybrid_recommendations(top=10, content_top=25, positiveThresh=3.5))
-print(recsys.validate_hybrid_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_cascade_recommendations(top=10, content_top=25, positiveThresh=3.5))
+print(recsys.validate_hybrid_cascade_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_weighted_recommendations(top=10, positiveThresh=3.5))
+print(recsys.validate_hybrid_weighted_recommendations(n_folds=5, movie_train=0.5, top=20, positiveThresh=3.5, random_state=28))
 
 np.random.seed(28)
 random.seed(28)
@@ -61,8 +65,10 @@ print(recsys.validate_collaborative_recommendations(n_folds=5, movie_train=0.5, 
 
 # Evaluación de híbrido con cgk similarity y KNN
 print("Híbrido con cgk similarity y KNN")
-print(recsys.evaluate_hybrid_recommendations(top=10, content_top=25, positiveThresh=3.5))
-print(recsys.validate_hybrid_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_cascade_recommendations(top=10, content_top=25, positiveThresh=3.5))
+print(recsys.validate_hybrid_cascade_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_weighted_recommendations(top=10, positiveThresh=3.5))
+print(recsys.validate_hybrid_weighted_recommendations(n_folds=5, movie_train=0.5, top=20, positiveThresh=3.5, random_state=28))
 
 
 np.random.seed(28)
@@ -71,5 +77,7 @@ recsys.set_overview_similarity_metric()
 
 # Evaluación de híbrido con overview similarity y KNN
 print("Híbrido con overview similarity y KNN")
-print(recsys.evaluate_hybrid_recommendations(top=10, content_top=25, positiveThresh=3.5))
-print(recsys.validate_hybrid_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_cascade_recommendations(top=10, content_top=25, positiveThresh=3.5))
+print(recsys.validate_hybrid_cascade_recommendations(n_folds=5, movie_train=0.5, top=20, content_top=25, positiveThresh=3.5, random_state=28))
+print(recsys.evaluate_hybrid_weighted_recommendations(top=10, positiveThresh=3.5))
+print(recsys.validate_hybrid_weighted_recommendations(n_folds=5, movie_train=0.5, top=20, positiveThresh=3.5, random_state=28))
