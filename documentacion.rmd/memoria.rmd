@@ -460,21 +460,21 @@ names(recall) <- c("k", as.character(system.names))
 names(precision.watched) <- c("k", as.character(system.names))
 
 library(reshape2)
-nprec <- melt(precision, id.vars=1, variable.name = "System", value.name = "Value")
-nrec <- melt(recall, id.vars=1, variable.name = "System", value.name = "Value")
-npw <- melt(precision.watched, id.vars = 1, variable.name = "System", value.name = "Value")
+nprec <- melt(precision, id.vars=1, variable.name = "System", value.name = "Precision")
+nrec <- melt(recall, id.vars=1, variable.name = "System", value.name = "Recall")
+npw <- melt(precision.watched, id.vars = 1, variable.name = "System", value.name = "Precision|watched")
 ```
 
 ```{r, echo=F, warning=F, fig.cap="Precisión obtenida con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:precision}"}
-ggplot(nprec, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+ggplot(nprec, aes(x=k, y=Precision, col=System)) + geom_line() + geom_point()
 ```
 
 ```{r, echo=F, warning=F, fig.cap="Recall obtenido con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:recall}"}
-ggplot(nrec, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+ggplot(nrec, aes(x=k, y=Recall, col=System)) + geom_line() + geom_point()
 ```
 
 ```{r, echo=F, warning=F, fig.cap="Precisión restringida obtenida con las k-top recomendaciones con los distintos sistemas de recomendación. \\label{fig:prec_w}"}
-ggplot(npw, aes(x=k, y=Value, col=System)) + geom_line() + geom_point()
+ggplot(npw, aes(x=k, y=`Precision|watched`, col=System)) + geom_line() + geom_point()
 ```
 
 Si observamos las gráficas de precisión y recall vemos que, como se comentó anteriormente, no tienen capacidad para reflejar las características de los sistemas de recomendación implementados. Los valores son muy bajos, pero esto se debe a que el sistema de recomendación no ha intervenido en la generación de los datos de test. Las películas vistas y valoradas por los usuarios son independientes de lo que hayan podido sugerir cualquiera de los sistemas. Esto lleva a que en general, la mayoría de películas recomendadas no han llegado a ser vistas pero esto no quiere decir que puedan ser irrelevantes para el usuario. Si el usuario llega a tener conocimiento de estas películas es bastante posible que las hubiera considerado relevantes. Como ejemplo podemos ver que el sistema basado en popularidad suele alcanzar los valores de precisión y recall más altos, pues las películas más populares suelen ser conocidas por los usuarios y llegan a ser valoradas (normalmente de forma positiva) más veces.
@@ -485,9 +485,82 @@ Por tanto, hemos visto cómo las distintas medidas utilizadas nos muestran que l
 
 # Manual de usuario
 
+Para concluir, esta sección explica las principales características del software implementado y muestra los comandos y argumentos necesarios para trabajar con los distintos sistemas de recomendación.
+
+El software elaborado está disponible en el fichero `recommender_system.py` adjunto, el cual contiene la clase `RecommenderSystem`, que implementa todas las funcionalidades descritas en este trabajo. Este fichero se apoya en el fichero `metrics.py`, que contiene las funciones que calculan las medidas de evaluación empleadas. Algunas de estas funciones son adaptaciones de las funciones que proporciona la librería `recmetrics` \cite{c3}. También hay disponible un script `test.py` que contiene las sentencias que se han utilizado para evaluar los distintos sistemas de recomendación.
+
+El software puede utilizarse para la elaboración de nuevos scripts, importándolo en estos mediante la sentencia `from recommender_system import RecommenderSystem`, o puede utilizarse de forma interactiva en una terminal de Python. Para este último caso podemos abrir la sesión interactiva de Python escribiendo la sentencia `python -i recommender_system.py` en la línea de comandos. El software se ha elaborado y probado con las versiones de Python 3.6 y 3.7, y requiere las versiones más recientes de las librerías `numpy`, `pandas`, `scikit-learn` y `surprise`. También el dataset debe encontrarse en el mismo directorio, sobre una carpeta llamada `the-movies-dataset`, aunque puede especificarse otro nombre modificando las variables estáticas del script.
+
+Una vez importada la librería o iniciada la sesión interactiva, el primer paso es crear un objeto `RecommenderSystem`. Durante la creación de este objeto, se cargarán los datos y se realizarán los preprocesamientos iniciales necesarios para el funcionamiento de los distintos sistemas de recomendación. Una vez cargados los datos, podemos empezar a realizar algunas consultas, como por ejemplo qué películas han visto y qué películas les han gustado a los distintos usuarios de la base de datos. Para ello, podemos utilizar los métodos `get_watched_movies(userId)` y `get_liked_movies(userId, positiveThresh)`, donde `userId` es el identificador del usuario (entre 1 y 671), y `positiveThresh` es el umbral con el que se considera que una valoración es positiva (entre 0 y 5). En la Figura \ref{fig:ex_inicial} se ejemplifican la construcción y estas consultas iniciales.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=6 cm]{./images/ex_inicial.png}
+\caption{Inicialización del sistema de recomendación y consultas básicas.\label{fig:ex_inicial}}
+\end{figure}
+
+Sin embargo, si queremos empezar a obtener recomendaciones, debemos especificar antes los métodos de obtención de similitudes (para basado en contenido e híbrido) o de entrenamiento (para basado en usuario e híbrido) a utilizar. Para el primer caso, los métodos `set_overview_similarity_metric()` y `set_cgk_similarity_metric()` permiten, respectivamente, establecer las similitudes basadas en las descripciones de las películas y en créditos, géneros y palabras clave. Para el segundo caso, los métodos `set_svd_user_training()` y `set_knn_user_training()` permiten usar los correspondientes métodos de entrenamiento. Todos estos métodos realizan la mayoría de cómputos necesarios para definir los sistemas, como el cálculo y almacenamiento de las matrices de semejanza o el aprendizaje de los modelos, de forma que a la hora de obtener las recuperaciones posteriores, el número de cálculos necesarios sea mínimo. En la Figura \ref{fig:ex_set} se muestra el uso de estos métodos.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=6 cm]{./images/ex_set.png}
+\caption{Configuración de las medidas de similitud y los métodos de entrenamiento a utilizar para los distintos sistemas.\label{fig:ex_set}}
+\end{figure}
+
+Una vez especificados los parámetros anteriores necesarios para cada sistema, podemos empezar a obtener recomendaciones. Para el sistema basado en popularidad, el método `get_popularity_recommendations(top)` nos devuelve el número de películas más populares especificado en `top`. El método `get_popularity_recommendations_` `for_user(userId, top)` es una envolvente que nos permite obtener las recomendaciones por popularidad para usuarios concretos, aunque en este caso podemos ver que las recomendaciones obtenidas son siempre las mismas, como se muestra en la Figura \ref{fig:ex_popularity}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=6 cm]{./images/ex_popularity.png}
+\caption{Recomendación basada en popularidad. Podemos observar cuáles son las películas mejor valoradas a nivel global de la base de datos. También vemos cómo las recomendaciones son siempre las mismas para todos los usuarios.\label{fig:ex_popularity}}
+\end{figure}
+
+El método `get_content_recommendations(title, top)` nos permite obtener la lista de `top` películas más similares a las especificadas en `title`. El argumento `title` puede ser una cadena de texto con el título de una sola película o una lista de títulos. Para obtener recomendaciones por usuarios podemos utilizar el método `get_content_recommendations_for_user(userId, top, positiveThresh)`, el cual obtiene las películas más similares a las que el usuario ha visto y le han gustado, según el umbral dado por `positiveThresh`. Este método utilizará la similitud que se haya especificado previamente con el método `set_XXXX_similarity_metric()` correspondiente. La Figura \ref{fig:ex_content} muestra ejemplos de recomendaciones basadas en contenido.
+
+\begin{figure}[h]
+\begin{minipage}{0.3\textwidth}
+\centering
+\includegraphics[width=5 cm]{./images/ex_content_1}
+\end{minipage}\hfill
+\begin{minipage}{0.3\textwidth}
+\centering
+\includegraphics[width=5 cm]{./images/ex_content_2}
+\end{minipage}\hfill
+\begin{minipage}{0.3\textwidth}
+\centering
+\includegraphics[width=5 cm]{./images/ex_content_3}
+\end{minipage}\hfill
+\caption{Recomendaciones con el sistema basado en contenido. A la izquierda, usando la similitud basada en la descripción de la película. En el centro, usando la similitud basada en créditos, géneros y palabras clave. Podemos ver que en el primer caso prácticamente todas las recomendaciones son sobre películas que tratan de piratas o en las que aparecen fábricas de chocolate. En el segundo caso aparecen películas que tratan otros temas, pero que comparten géneros o actores (en este caso Johnny Depp) con las películas indicadas. A la derecha se muestran las recomendaciones para un usuario concreto, de acuerdo con las películas que ha valorado positivamente. \label{fig:ex_content}}
+\end{figure}
+
+El método `get_collaborative_recommendations_for_user(userId, top)` muestra, para el usuario especificado, las recomendaciones obtenidas mediante el sistema colaborativo, es decir, aquellas para las que la estimación de valoración obtenida por el algoritmo de aprendizaje es mayor. De nuevo, este método utilizará como algoritmo de predicción aquel que se haya especificado previamente con el método `set_XXXX_user_training()` correspondiente. La Figura \ref{fig:ex_collaborative} muestra ejemplos de recomendaciones colaborativas.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=6 cm]{./images/ex_collaborative.png}
+\caption{Recomendaciones del sistema colaborativo (con SVD) para distintos usuarios.\label{fig:ex_collaborative}}
+\end{figure}
+
+En cuanto al sistema híbrido, el método `get_hybrid_recommendations_for_user(userId, top, content_top, positiveThresh)` permite obtener las recomendaciones combinando las de los sistemas colaborativo y basado en contenido. El parámetro `content_top` indica el número de recomendaciones a escoger del sistema basado en contenido. Inicialmente se tomarán dicho número de recomendaciones de entre las películas más similares a las que le han gustado al usuario. Después el sistema colaborativo escogerá de entre esas películas el número indicado por `top`  con mayor estimación de valoración. Este método utilizará la similitud que haya sido especificada con el método `set_XXXX_similarity_metric()` correspondiente y el algoritmo de predicción especificado con el método `set_XXXX_user_training()`. La Figura \ref{fig:ex_hybrid} muestra ejemplos de estas recomendaciones híbridas.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=6 cm]{./images/ex_hybrid.png}
+\caption{Recomendaciones del sistema híbrido (con c-g-k y SVD) para distintos usuarios.\label{fig:ex_hybrid}}
+\end{figure}
+
+Finalmente, la clase `RecommenderSystem` proporciona los mecanismos necesarios para calcular las medidas evaluación de los sistemas. Para la evaluación no supervisada, se disponen los métodos `evaluate_popularity_recommendations(top)`, `evaluate_content_recommendations(top, positiveThresh)`, `evaluate_collaborative_recommendations(top)` y `evaluate_hybrid_recommendations(top, content_top, positiveThresh)`. Estos métodos calculan las recomendaciones para todos los usuarios según los parámetros especificados y calculan las métricas no supervisadas para dichas listas. Para la evaluación supervisada, se disponen los métodos `validate_popularity_recommendations(n_folds, movie_train, top, positiveThresh, random_state)`, `validate_content_recommendations(n_folds, movie_train, top, positiveThresh, random_state)`, `validate_collaborative_recommendations(n_folds, movie_train, top, positiveThresh, random_state)` y `validate_hybrid_recommendations(n_folds, movie_train, top, content_top, positiveThresh, random_state)`. Los parámetros `top` y `content_top` vuelven a especificar el tamaño de las recomendaciones tal y como se explicó previamente; `n_folds` indica el número de particiones para la validación cruzada, `movie_train` indica la fracción de películas que se va a utilizar para calcular las recomendaciones sobre los usuarios de test, `positiveThresh` es el umbral que indica cuándo una película se considera relevante para el usuario (tanto a la hora de recomendar como a la hora de validar), y `random_state` es la semilla aleatoria utilizada para generar las particiones. Los métodos, tanto supervisados como no supervisados, devuelven un diccionario, donde las claves son el nombre de las distintas métricas, y los valores son el valor numérico de dicha métrica, para el caso de los no supervisados, o una lista de valores, desde 1 hasta `top`, para el caso de la precisión, recall y precisión restringida. En la Figura \ref{fig:ex_evaluate} se muestra el uso de los métodos de validación.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=15 cm]{./images/ex_evaluate.png}
+\caption{Ejemplo de evaluación de un sistema de recomendación y resultados.\label{fig:ex_evaluate}}
+\end{figure}
+
 \newpage
 
 \begin{thebibliography}{X}
 	\bibitem{c1} \url{https://www.kaggle.com/rounakbanik/the-movies-dataset}
 	\bibitem{c2} \url{http://surpriselib.com/}
+	\bibitem{c3} \url{https://github.com/statisticianinstilettos/recmetrics}
 \end{thebibliography}

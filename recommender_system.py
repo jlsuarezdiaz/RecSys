@@ -225,6 +225,7 @@ class RecommenderSystem:
         self.similarity_type = None
         self.list_size = None
         del self.similarity
+        self.similarity = None
         gc.collect()
 
     def get_content_recommendations_by_index(self, index, top=10):
@@ -303,6 +304,8 @@ class RecommenderSystem:
             ratings = self.ratings
         if user_training is None:
             user_training = self.user_training
+        if user_training is None:
+            raise ValueError("A training-prediction method must be defined.")
         # nos quedamos unicamente con las películas que no haya visto userId.
         # tomamos unicamente aquellas peliculas que no ha visto
         condition = ratings[ratings['userId'] == userId]
@@ -717,12 +720,14 @@ class RecommenderSystem:
 # > recsys.get_hybrid_recommendations(1, 'The Dark Knight Rises')
 
 # Use these before fitting an algorithm
+# np.random.seed(28)
+# random.seed(28)
 
-if __name__ == "__main__":
-    np.random.seed(28)
-    random.seed(28)
+# if __name__ == "__main__":
+#     np.random.seed(28)
+#     random.seed(28)
 
-    recsys = RecommenderSystem()
+#     recsys = RecommenderSystem()
 
-    # recsys.set_overview_similarity_metric()
-    # recsys.set_svd_user_training()
+#     recsys.set_overview_similarity_metric()
+#     recsys.set_svd_user_training()
