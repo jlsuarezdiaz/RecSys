@@ -13,7 +13,7 @@ import random
 
 
 class RecommenderSystem:
-
+    # Variables estáticas con las direcciones de los ficheros de datos.
     MOVIES_FOLDER = 'the-movies-dataset/'
 
     METADATA_PATH = MOVIES_FOLDER + 'movies_metadata.csv'
@@ -26,14 +26,14 @@ class RecommenderSystem:
 
     LINKS_PATH = MOVIES_FOLDER + 'links.csv'
 
-    # Get the director's name from the crew feature. If director is not listed, return NaN
+    # Método privado para obtener el director a partir de los datos del equipo de rodaje.
     def _get_director(self, x):
         for i in x:
             if i['job'] == 'Director':
                 return i['name']
         return np.nan
 
-    # Returns the list top 3 elements or entire list; whichever is more.
+    # Función para obtener los top n elementos de una lista.
     def _get_list(self, x, n=3):
         if isinstance(x, list):
             names = [i['name'] for i in x]
@@ -45,35 +45,39 @@ class RecommenderSystem:
         # Return empty list in case of missing/malformed data
         return []
 
-    # Function to convert all strings to lower case and strip names of spaces
+    # Función que convierte textos a minúsculas eliminando espacios y signos de puntuación.
     def _clean_data(self, x):
         if isinstance(x, list):
             return [str.lower(i.replace(" ", "").replace(".", "")) for i in x]
         else:
-            # Check if director exists. If not, return empty string
             if isinstance(x, str):
                 return str.lower(x.replace(" ", "").replace(".", ""))
             else:
                 return ''
 
+    # Función para limpiar títulos de películas. Elimina signos de puntuación y espacios y convierte a minúsculas.
     def _clean_title(self, title):
         return str.lower(title.replace(" ", "").replace(".", "").replace(",", "").replace(":", "").replace(";", ""))
 
+    # Función para crear una bolsa de palabras a partir de las palabras clave, géneros, director y actores.
     def _create_soup(self, x):
         return ' '.join(x['top_keywords']) + ' ' + ' '.join(x['top_cast']) + ' ' + x['clean_director'] + ' ' + ' '.join(x['top_genres'])
 
+    # Función para convertir a valores enteros. Si la conversión no es posible se devuelve NaN.
     def _convert_int(self, x):
         try:
             return int(x)
         except:
             return np.nan
 
+    # Cálculo del rating ponderado para las recomendaciones por popularidad.
     def _weighted_rating(self, x, m, C):
         v = x['vote_count']
         R = x['vote_average']
 
         return 0.0 if v < m else (v / (v + m) * R) + (m / (m + v) * C)
 
+    # Constructor.
     def __init__(self):
         self.similarity = None
         self.similarity_type = None
@@ -81,42 +85,43 @@ class RecommenderSystem:
         self.user_training = None
         self.user_training_type = None
 
+        # Lectura del archivo de metadatos.
         print("Loading metadata...")
         self.metadata = pd.read_csv(RecommenderSystem.METADATA_PATH, low_memory=False)
-        # Replace NaN with an empty string
+        # Reemplazo de argumentos con valores perdidos por cadenas vacías.
         self.metadata['overview'] = self.metadata['overview'].fillna('')
 
-        # Load keywords and credits
+        # Cargar palabras clave y créditos
         print("Loading credits and keywords...")
         credits = pd.read_csv(RecommenderSystem.CREDITS_PATH)
         keywords = pd.read_csv(RecommenderSystem.KEYWORDS_PATH)
 
-        # Remove rows with bad IDs.
+        # Eliminación de películas con información corrupta.
         print("Preprocessing metadata...")
         self.metadata = self.metadata.drop([19729, 19730, 29502, 29503, 35586, 35587])
 
-        # Convert IDs to int. Required for merging
+        # Unimos metadatos, palabras clave y créditos en el mismo dataframe.
         keywords['id'] = keywords['id'].astype('int')
         credits['id'] = credits['id'].astype('int')
         self.metadata['id'] = self.metadata['id'].astype('int')
 
-        # Merge keywords and credits into your main metadata dataframe
+        # Mezclado de datos
         self.metadata = self.metadata.merge(credits, on='id')
         self.metadata = self.metadata.merge(keywords, on='id')
 
-        # Parse the stringified features into their corresponding python objects
+        # Los datos vienen en cadenas de texto que representan listas o diccionarios. Los convertimos a dichos objetos.
         features = ['cast', 'crew', 'keywords', 'genres']
         for feature in features:
             self.metadata[feature] = self.metadata[feature].apply(literal_eval)
 
-        # Define new director, cast, genres and keywords features that are in a suitable form.
+        # Obtenemos director, actores, palabras clave y géneros en un formato tratable
         self.metadata['director'] = self.metadata['crew'].apply(self._get_director)
 
         self.features = ['cast', 'keywords', 'genres']
         for feature in features:
             self.metadata[feature] = self.metadata[feature].apply(self._get_list, n=100)
 
-        # Apply clean_data function to your features.
+        # Limpieza de director, actores, palabras clave y géneros (eliminando espacios y convirtiendo a minúscula) para la posterior tokenización.
         features = ['cast', 'keywords', 'director', 'genres']
 
         for feature in features:
@@ -155,21 +160,62 @@ class RecommenderSystem:
         self.ratings = self.ratings[self.ratings['movieId'].isin(self.di_map.index)]
 
         reader = Reader()
-
+        # Ratings como objeto Dataset de Surprise.
         self.rating_ds = Dataset.load_from_df(self.ratings[['userId', 'movieId', 'rating']], reader)
 
+    # Método que permite acceder a los metadatos de las películas.
     def get_metadata(self):
         return self.metadata
 
     def get_popularity_recommendations_by_index(self, top=10):
+        """
+        Obtención de recomendaciones por popularidad (por índices)
+
+        Parameters
+        ----------
+
+        top: Número de elementos a devolver.
+
+        Returns
+        -------
+        Índices de las películas recomendadas y correspondientes scores de popularidad.
+        """
         meta_sorted = self.metadata[['vote_count', 'vote_average', 'score']].sort_values('score', ascending=False)
         return list(meta_sorted.index)[:top], meta_sorted['score'].head(top)
 
     def get_popularity_recommendations(self, top=10):
+        """
+        Obtención de recomendaciones por popularidad
+
+        Parameters
+        ----------
+
+        top: Número de elementos a devolver.
+
+        Returns
+        -------
+        Dataframe con los títulos de las recomendaciones, total de votos, promedio de votos y scores de popularidad.
+        """
         movie_indices, _ = self.get_popularity_recommendations_by_index(top)
         return self.metadata[['title', 'vote_count', 'vote_average', 'score']].loc[movie_indices]
 
     def get_popularity_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0, ratings=None):
+        """
+        Obtención de recomendaciones por popularidad (por índices)
+
+        Parameters
+        ----------
+
+        top: Número de elementos a devolver.
+
+        positiveThresh: Ignored.
+
+        ratings: Ignored.
+
+        Returns
+        -------
+        Índices de las películas recomendadas y correspondientes scores de popularidad.
+        """
         try:
             return self.get_popularity_recommendations_by_index(top)
         except:
@@ -177,13 +223,29 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_popularity_recommendations_for_user(self, userId, top=10, positiveThresh=4.0, ratings=None):
+        """
+        Obtención de recomendaciones por popularidad
+
+        Parameters
+        ----------
+
+        top: Número de elementos a devolver.
+
+        positiveThresh: Ignored.
+
+        ratings: Ignored.
+
+        Returns
+        -------
+        Dataframe con los títulos de las recomendaciones, total de votos, promedio de votos y scores de popularidad.
+        """
         try:
             return self.get_popularity_recommendations(top)
         except:
             print("No positive recommendations for this user under this threshold.")
             return pd.DataFrame([], columns=['title', 'similarity'])
 
-    # Métrica de simililtud basada en las descripciones de las películas.
+    # Establece la métrica de simililtud basada en las descripciones de las películas.
     def set_overview_similarity_metric(self):
         if self.similarity_type != 'overview':
             self.similarity_type = 'overview'
@@ -191,14 +253,14 @@ class RecommenderSystem:
             del self.similarity
             gc.collect()  # Recolector de basura.
             print("Creating new similarity matrix...")
-            # Define a TF-IDF Vectorizer Object. Remove all english stop words such as 'the', 'a'
+            # Objeto que calcula el score TF-IDF. Elimina palabras de parada del inglés.
             tfidf = TfidfVectorizer(stop_words='english')
-            # Construct the required TF-IDF matrix by fitting and transforming the data
+            # Construcción de la matriz TF-IDF.
             tfidf_matrix = tfidf.fit_transform(self.metadata['overview'])
-            # Compute the cosine similarity matrix
+            # Cálculo de la similaridad del coseno (al ser sobre TF-IDF es equivalente a un kernel lineal)
             self.similarity = linear_kernel(tfidf_matrix, dense_output=False)
 
-    # Métrica de similitud basada en créditos, géneros y keywords (cgk)
+    # Establece la métrica de similitud basada en créditos, géneros y keywords (cgk)
     def set_cgk_similarity_metric(self, list_size=3):
         if self.similarity_type != 'cgk' or self.list_size != list_size:
             self.similarity_type = 'cgk'
@@ -214,13 +276,14 @@ class RecommenderSystem:
                 self.metadata['top_' + feature] = self.metadata['clean_' + feature].apply(lambda x: x[:self.list_size])
             self.metadata['soup'] = self.metadata.apply(self._create_soup, axis=1)
 
-            # Create the count matrix
+            # Matriz de ocurrencias
             count = CountVectorizer(stop_words='english')
             count_matrix = count.fit_transform(self.metadata['soup'])
 
-            # Compute the Cosine Similarity matrix based on the count_matrix
+            # Similaridad del coseno sobre la matriz de ocurrencias.
             self.similarity = cosine_similarity(count_matrix, dense_output=False)
 
+    # Elimima la matriz de similaridad actual, liberando la memoria que ocupa.
     def clear_similarity_metric(self):
         self.similarity_type = None
         self.list_size = None
@@ -229,6 +292,21 @@ class RecommenderSystem:
         gc.collect()
 
     def get_content_recommendations_by_index(self, index, top=10):
+        """
+        Obtención de las recomendaciones basadas en contenido (por índices).
+
+        Parameters
+        ----------
+
+        index: Entero o lista con los índices de películas sobre los que buscar.
+
+        top: Número de elementos a devolver.
+
+        Returns
+        -------
+
+        Índices de las películas más similares, junto con los scores de similaridad.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(index, int):
@@ -237,16 +315,16 @@ class RecommenderSystem:
         # nmovies = len(index)
 
         if index:
-            # Get the pairwsie similarity scores of all movies with that movie
+            # Semejanzas de todas las películas con las películas indicadas.
             sim_scores = np.array(list(enumerate(np.asarray(self.similarity[index].tocsc().max(axis=0).todense()).ravel())))
             sim_scores[index, 1] = -1.0
-            # Sort the movies based on the similarity scores
+            # Ordenación basada en las semejanzas.
             sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-            # Get the scores of the 10 most similar movies
+            # Obtención del top de similaridades.
             sim_scores = sim_scores[:top]
-            # Get the similarities
+            # Valores de similaridad.
             similarities = [i[1] for i in sim_scores]
-            # Get the movie indices
+            # Índices de películas.
             movie_indices = [i[0] for i in sim_scores]
 
             return movie_indices, similarities
@@ -254,6 +332,21 @@ class RecommenderSystem:
             return [], []
 
     def get_content_recommendations(self, title, top=10):
+        """
+        Obtención de las recomendaciones basadas en contenido a partir de una lista de películas.
+
+        Parameters
+        ----------
+
+        title: String o lista con los títulos de películas sobre los que buscar.
+
+        top: Número de elementos a devolver.
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las películas más similares y los scores de similaridad.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(title, str):
@@ -270,6 +363,25 @@ class RecommenderSystem:
         # return self.metadata['title'].iloc[movie_indices]
 
     def get_content_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0, ratings=None):
+        """
+        Obtención de las recomendaciones basadas en contenido para un usuario concreto (por índices).
+
+        Parameters
+        ----------
+
+        userId: id del usuario.
+
+        top: número de elementos a recomendar.
+
+        positiveThresh: umbral de las valoraciones con el que se consideran las películas relevantes para el usuario.
+
+        ratings: Ignored.
+
+        Returns
+        -------
+
+        Índices de las películas más similares, junto con los scores de similaridad.
+        """
         try:
             return self.get_content_recommendations_by_index(self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top)
         except:
@@ -277,12 +389,32 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity']), []
 
     def get_content_recommendations_for_user(self, userId, top=10, positiveThresh=4.0, ratings=None):
+        """
+        Obtención de las recomendaciones basadas en contenido a partir de una lista de películas.
+
+        Parameters
+        ----------
+
+        userId: id del usuario.
+
+        top: número de elementos a recomendar.
+
+        positiveThresh: umbral de las valoraciones con el que se consideran las películas relevantes para el usuario.
+
+        ratings: Ignored.
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las películas más similares y los scores de similaridad.
+        """
         try:
             return self.get_content_recommendations(self.get_liked_movies(userId, positiveThresh, ratings)['title'], top)
         except:
             print("No positive recommendations for this user under this threshold.")
             return pd.DataFrame([], columns=['title', 'similarity'])
 
+    # Establece SVD como método de entrenamiento y predicción de ratings.
     def set_svd_user_training(self):
         if self.user_training_type != 'svd':
             self.user_training_type = 'svd'
@@ -291,6 +423,7 @@ class RecommenderSystem:
             train = self.rating_ds.build_full_trainset()
             self.user_training.fit(train)
 
+    # Establece KNN como método de entrenamiento y predicción de ratings.
     def set_knn_user_training(self):
         if self.user_training_type != 'knn':
             self.user_training_type = 'knn'
@@ -300,6 +433,25 @@ class RecommenderSystem:
             self.user_training.fit(train)
 
     def get_collaborative_recommendations_by_index(self, userId, top=10, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones colaborativas por índices.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con las estimaciones de las valoraciones.
+        """
         if ratings is None:
             ratings = self.ratings
         if user_training is None:
@@ -323,12 +475,53 @@ class RecommenderSystem:
         return list(movies.index)[:top], movies['estimation'].head(top)
 
     def get_collaborative_recommendations(self, userId, top=10, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones colaborativas.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y las correspondientes estimaciones de las valoraciones.
+        """
         movie_indices, estimations = self.get_collaborative_recommendations_by_index(userId, top, ratings, user_training)
         results = pd.concat([self.metadata['title'].iloc[movie_indices], estimations], axis=1)
 
         return results
 
     def get_collaborative_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones colaborativas por índices (envolvente para validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        positiveThresh: ignored.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con las estimaciones de las valoraciones.
+        """
         try:
             return self.get_collaborative_recommendations_by_index(userId, top, ratings, user_training)
         except:
@@ -336,6 +529,28 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_collaborative_recommendations_for_user(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones colaborativas (envolvente para validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        positiveThresh: ignored.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y las correspondientes estimaciones de las valoraciones.
+        """
         try:
             return self.get_collaborative_recommendations(userId, top, ratings, user_training)
         except:
@@ -343,6 +558,27 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_hybrid_cascade_recommendations_by_index(self, userId, index, top=10, content_top=25, user_training=None):
+        """
+        Obtención de recomendaciones híbridas en cascada por índices.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        index: Entero o lista con los índices de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        content_top: Número de películas a recuperar por contenido en el paso inicial.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con las estimaciones de las valoraciones.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(index, int):
@@ -372,6 +608,30 @@ class RecommenderSystem:
             return [], []
 
     def get_hybrid_cascade_recommendations(self, userId, title, top=10, content_top=25, user_training=None):
+        """
+        Obtención de recomendaciones híbridas en cascada.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        title: String o lista con los títulos de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        content_top: Número de películas a recuperar por contenido en el paso inicial.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y las correspondientes estimaciones de las valoraciones.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(title, str):
@@ -387,6 +647,29 @@ class RecommenderSystem:
         return results
 
     def get_hybrid_cascade_recommendations_for_user_by_index(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones híbridas en cascada por índices (envolvente para validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        content_top: Número de películas a recuperar por contenido en el paso inicial.
+
+        positiveThresh: Umbral de valoración sobre el que se considera una película relevante.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con las estimaciones de las valoraciones.
+        """
         try:
             return self.get_hybrid_cascade_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, content_top, user_training)
         except:
@@ -394,6 +677,30 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_hybrid_cascade_recommendations_for_user(self, userId, top=10, content_top=25, positiveThresh=4.0, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones híbridas en cascada (envolvente para la validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        title: String o lista con los títulos de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        content_top: Número de películas a recuperar por contenido en el paso inicial.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y las correspondientes estimaciones de las valoraciones.
+        """
         try:
             return self.get_hybrid_cascade_recommendations(userId, self.get_liked_movies(userId, positiveThresh, ratings)['title'], top, content_top, user_training)
         except:
@@ -401,6 +708,25 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_hybrid_weighted_recommendations_by_index(self, userId, index, top=10, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones híbridas ponderadas por índices.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        index: Entero o lista con los índices de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con los correspondientes score híbridos.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(index, int):
@@ -442,6 +768,28 @@ class RecommenderSystem:
             return [], []
 
     def get_hybrid_weighted_recommendations(self, userId, title, top=10, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones híbridas ponderadas.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        title: String o lista con los títulos de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y los correspondientes score híbridos.
+        """
         if self.similarity is None:
             raise ValueError("A similarity metric must be defined.")
         if isinstance(title, str):
@@ -457,6 +805,27 @@ class RecommenderSystem:
         return results
 
     def get_hybrid_weighted_recommendations_for_user_by_index(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
+        """
+        Obtención de recomendaciones híbridas ponderadas por índices (envolvente para validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        top: Número de películas a recomendar.
+
+        positiveThresh: Umbral de valoración sobre el que se considera una película relevante.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas recomendadas, junto con los score híbridos.
+        """
         try:
             return self.get_hybrid_weighted_recommendations_by_index(userId, self.get_liked_movies_by_index(userId, positiveThresh, ratings)[0], top, ratings, user_training)
         except:
@@ -464,13 +833,52 @@ class RecommenderSystem:
             return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_hybrid_weighted_recommendations_for_user(self, userId, top=10, positiveThresh=4.0, ratings=None, user_training=None):
-        # try:
+        """
+        Obtención de recomendaciones híbridas en cascada (envolvente para la validación cruzada).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que realizar las recomendaciones.
+
+        title: String o lista con los títulos de películas sobre los que buscar por contenido.
+
+        top: Número de películas a recomendar.
+
+        content_top: Número de películas a recuperar por contenido en el paso inicial.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        user_training: Algoritmo de entrenamiento y predicción (por defecto se utiliza el entrenado sobre todas las valoraciones). Especificar para validación cruzada.
+
+
+        Returns
+        -------
+
+        Dataframe con los títulos de las recomendaciones y los correspondientes score híbridos.
+        """
+        try:
             return self.get_hybrid_weighted_recommendations(userId, self.get_liked_movies(userId, positiveThresh, ratings)['title'], top, ratings, user_training)
-        # except:
-        #    print("No positive recommendations for this user under this threshold.")
-        #    return pd.DataFrame([], columns=['title', 'similarity'])
+        except:
+            print("No positive recommendations for this user under this threshold.")
+            return pd.DataFrame([], columns=['title', 'similarity'])
 
     def get_watched_movies_by_index(self, userId, ratings=None):
+        """
+        Obtención de películas vistas por un usuario (índices).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que buscar.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas vistas, junto con las valoraciones realizadas por el usuario.
+        """
         if ratings is None:
             ratings = self.ratings
         watched_mid = self.ratings[self.ratings['userId'] == userId]
@@ -480,11 +888,43 @@ class RecommenderSystem:
         return list(watched_indices), ratings
 
     def get_watched_movies(self, userId, user_ratings=None):
+        """
+        Obtención de películas vistas por un usuario.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que buscar.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        DataFrame con los títulos de las películas vistas, y sus correspondientes valoraciones.
+        """
         indices, ratings = self.get_watched_movies_by_index(userId, user_ratings)
         results = pd.DataFrame(list(zip(self.metadata['title'].iloc[indices], ratings)), columns=['title', 'rating'])
         return results
 
     def get_liked_movies_by_index(self, userId, positiveThresh=4.0, ratings=None):
+        """
+        Obtención de películas que han gustado a un usuario (índices).
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que buscar.
+
+        positiveThresh: umbral a partir del cual se considera que una película ha gustado.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        Índices de las películas que han gustado al usuario, junto con las valoraciones realizadas por el usuario.
+        """
         if ratings is None:
             ratings = self.ratings
         liked = ratings[ratings['rating'] >= positiveThresh]
@@ -495,11 +935,41 @@ class RecommenderSystem:
         return list(watched_indices), ratings
 
     def get_liked_movies(self, userId, positiveThresh=4.0, user_ratings=None):
+        """
+        Obtención de películas vistas por un usuario.
+
+        Parameters
+        ----------
+
+        userId: usuario sobre el que buscar.
+
+        positiveThresh: umbral a partir del cual se considera que una película ha gustado.
+
+        ratings: Dataframe de valoraciones (por defecto se usan todas las valoraciones). Especificar para validación cruzada.
+
+        Returns
+        -------
+
+        DataFrame con los títulos de las películas que han gustado al usuario, y sus correspondientes valoraciones.
+        """
         indices, ratings = self.get_liked_movies_by_index(userId, positiveThresh, user_ratings)
         results = pd.DataFrame(list(zip(self.metadata['title'].iloc[indices], ratings)), columns=['title', 'rating'])
         return results
 
     def _evaluate_recommendations(self, rec_list):
+        """
+        Función que obtiene medidas de evaluación a partir de la lista de recomendaciones sobre todos los usuarios.
+
+        Parameters
+        ----------
+
+        rec_list : Lista con las listas de recomendaciones (en índices) de todos los usuarios.
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Preprocessing...")
         movie_indices = list(self.metadata.index)
 
@@ -513,10 +983,8 @@ class RecommenderSystem:
         top_features['clean_director'] = self.metadata['clean_director']
         top_features['soup'] = top_features.apply(self._create_soup, axis=1)
 
-        # Create the count matrix
         count = CountVectorizer(stop_words='english')
         count_matrix = count.fit_transform(top_features['soup'])
-        # sim_df_overview = pd.DataFrame(tfidf_matrix, index=self.metadata.index)
 
         print("Calculating coverage...")
         cov = coverage(rec_list, movie_indices)
@@ -536,6 +1004,22 @@ class RecommenderSystem:
                 'novelty': nov}
 
     def evaluate_popularity_recommendations(self, top=10, positiveThresh=4.0):
+        """
+        Función que obtiene las medidas de evaluación no supervisadas para las recomendaciones por popularidad.
+
+        Parameters
+        ----------
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: Ignored.
+
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
@@ -545,6 +1029,22 @@ class RecommenderSystem:
         return self._evaluate_recommendations(rec_list)
 
     def evaluate_content_recommendations(self, top=10, positiveThresh=4.0):
+        """
+        Función que obtiene las medidas de evaluación no supervisadas para las recomendaciones por contenido.
+
+        Parameters
+        ----------
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración para el que se considera que una película es relevante.
+
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
@@ -554,6 +1054,22 @@ class RecommenderSystem:
         return self._evaluate_recommendations(rec_list)
 
     def evaluate_collaborative_recommendations(self, top=10, positiveThresh=4.0):
+        """
+        Función que obtiene las medidas de evaluación no supervisadas para las recomendaciones colaborativas.
+
+        Parameters
+        ----------
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: Ignored.
+
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
@@ -563,6 +1079,24 @@ class RecommenderSystem:
         return self._evaluate_recommendations(rec_list)
 
     def evaluate_hybrid_cascade_recommendations(self, top=10, content_top=25, positiveThresh=4.0):
+        """
+        Función que obtiene las medidas de evaluación no supervisadas para las recomendaciones híbridas en cascada.
+
+        Parameters
+        ----------
+
+        top: Tamaño de las listas de recomendación.
+
+        content_top: Número de películas a recuperar por contenido en la fase inicial.
+
+        positiveThresh: umbral de valoración para el que se considera que una película es relevante.
+
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
@@ -572,6 +1106,22 @@ class RecommenderSystem:
         return self._evaluate_recommendations(rec_list)
 
     def evaluate_hybrid_weighted_recommendations(self, top=10, positiveThresh=4.0):
+        """
+        Función que obtiene las medidas de evaluación no supervisadas para las recomendaciones híbridas ponderadas.
+
+        Parameters
+        ----------
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración para el que se considera que una película es relevante.
+
+
+        Returns
+        -------
+
+        Diccionario con las medidas coverage, personalization, intralist_overview_similarity, intralist_cgk_similarity y novelty, y los correspondientes valores.
+        """
         print("Obtaining recommendations for every user (this may take a while)...")
         user_ids = self.ratings['userId'].unique()
         nusers = len(user_ids)
@@ -581,6 +1131,23 @@ class RecommenderSystem:
         return self._evaluate_recommendations(rec_list)
 
     def _generate_train_test(self, train_indices, test_indices, movie_train=0.8):
+        """
+        Generación de conjuntos para la validación cruzada.
+
+        Parameters
+        ----------
+
+        train_indices: Índices de la partición de entrenamiento.
+
+        test_indices: Índices de la partición de test.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        Returns
+        -------
+
+        Conjuntos de usuarios para entrenamiento, para generación de recomendaciones en test y para evaluación de las recomendaciones en test.
+        """
         ratings_train = self.ratings.loc[self.ratings.index[train_indices]]
         ratings_test = self.ratings.loc[self.ratings.index[test_indices]]
 
@@ -591,11 +1158,39 @@ class RecommenderSystem:
         return ratings_train, test_pre, test_pos
 
     def _partitionate(self, n_folds=5, movie_train=0.8, random_state=28):
+        """
+        Generación de las particiones de validación cruzada. Se almacenan en el atributo de instancia 'partitions'.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        random_state: Semilla para generar las particiones.
+        """
         print("Partitioning...")
         kf = KFold(n_folds, random_state=random_state)
         self.partitions = [self._generate_train_test(train, test, movie_train) for train, test in kf.split(self.ratings)]
 
     def validate_popularity_recommendations(self, n_folds=5, movie_train=0.8, top=10, positiveThresh=4.0, random_state=28):
+        """
+        Validación cruzada de las recomendaciones por popularidad.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración a partir del cual una película se considera relevante.
+
+        random_state: Semilla para generar las particiones.
+        """
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -633,6 +1228,22 @@ class RecommenderSystem:
                 'precision_watched': prec_w.mean()}
 
     def validate_content_recommendations(self, n_folds=5, movie_train=0.8, top=10, positiveThresh=4.0, random_state=28):
+        """
+        Validación cruzada de las recomendaciones por contenido.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración a partir del cual una película se considera relevante.
+
+        random_state: Semilla para generar las particiones.
+        """
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -669,6 +1280,7 @@ class RecommenderSystem:
                 'recall': rec.mean(),
                 'precision_watched': prec_w.mean()}
 
+    # Función privada para sustituir funcionalidad de Surprise.
     def _raw_folds_surprise(self, train, test):
         for i in range(1):
             # reader = Reader()
@@ -679,6 +1291,22 @@ class RecommenderSystem:
             yield train, test
 
     def validate_collaborative_recommendations(self, n_folds=5, movie_train=0.8, top=10, positiveThresh=4.0, random_state=28):
+        """
+        Validación cruzada de las recomendaciones colaborativas.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración a partir del cual una película se considera relevante.
+
+        random_state: Semilla para generar las particiones.
+        """
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -730,6 +1358,24 @@ class RecommenderSystem:
                 'precision_watched': prec_w.mean()}
 
     def validate_hybrid_cascade_recommendations(self, n_folds=5, movie_train=0.8, top=10, content_top=25, positiveThresh=4.0, random_state=28):
+        """
+        Validación cruzada de las recomendaciones híbridas en cascada.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        top: Tamaño de las listas de recomendación.
+
+        content_top: Número de recomendaciones por contenido a recuperar en la fase inicial.
+
+        positiveThresh: umbral de valoración a partir del cual una película se considera relevante.
+
+        random_state: Semilla para generar las particiones.
+        """
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -780,6 +1426,22 @@ class RecommenderSystem:
                 'precision_watched': prec_w.mean()}
 
     def validate_hybrid_weighted_recommendations(self, n_folds=5, movie_train=0.8, top=10, positiveThresh=4.0, random_state=28):
+        """
+        Validación cruzada de las recomendaciones híbridas ponderadas.
+
+        Parameters
+        ----------
+
+        n_folds: Número de particiones a realizar.
+
+        movie_train: Fracción dedicada a elaborar las recomendaciones del conjunto test.
+
+        top: Tamaño de las listas de recomendación.
+
+        positiveThresh: umbral de valoración a partir del cual una película se considera relevante.
+
+        random_state: Semilla para generar las particiones.
+        """
         self._partitionate(n_folds, movie_train, random_state)
         prec = np.empty([n_folds, top])
         rec = np.empty([n_folds, top])
@@ -852,11 +1514,12 @@ class RecommenderSystem:
 # np.random.seed(28)
 # random.seed(28)
 
-if __name__ == "__main__":
-    np.random.seed(28)
-    random.seed(28)
+# Código de inicialización básico
+# if __name__ == "__main__":
+#     np.random.seed(28)
+#     random.seed(28)
 
-    recsys = RecommenderSystem()
+#     recsys = RecommenderSystem()
 
-    recsys.set_overview_similarity_metric()
-    recsys.set_svd_user_training()
+#     recsys.set_overview_similarity_metric()
+#     recsys.set_svd_user_training()

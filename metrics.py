@@ -6,7 +6,7 @@ from sklearn.metrics import mean_squared_error
 from math import sqrt
 import itertools
 from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 # Adapted from https://github.com/statisticianinstilettos/recmetrics/blob/master/recmetrics/metrics.py
@@ -135,6 +135,7 @@ def intra_list_similarity(predicted, feature_df):
     return np.mean(ils)
 
 
+# Cálculo de la novedad de una lista de recomendaciones.
 def novelty(predicted):
     # get all unique items recommended
     predicted_flattened = np.array([p for sublist in predicted for p in sublist])
@@ -146,6 +147,7 @@ def novelty(predicted):
     return novelty
 
 
+# Adapted from https://github.com/statisticianinstilettos/recmetrics/blob/master/recmetrics/metrics.py
 def _ark(actual, predicted, k=10):
     """
     Computes the average recall at k.
@@ -179,6 +181,7 @@ def _ark(actual, predicted, k=10):
     return score / len(actual)
 
 
+# Adapted from https://github.com/statisticianinstilettos/recmetrics/blob/master/recmetrics/metrics.py
 def mark(actual, predicted, k=10):
     """
     Computes the mean average recall at k.
@@ -198,9 +201,11 @@ def mark(actual, predicted, k=10):
     return np.mean([_ark(a, p, k) for a, p in zip(actual, predicted)])
 
 
+# Precisión clásica
 def precision(actual, predicted, k=10):
     return np.nanmean([np.nan if len(p) == 0 else len(np.intersect1d(a, p[:k])) / len(p) for a, p in zip(actual, predicted)])
 
 
+# Recall clásico
 def recall(actual, predicted, k=10):
     return np.nanmean([np.nan if len(a) == 0 else len(np.intersect1d(a, p[:k])) / len(a) for a, p in zip(actual, predicted)])
