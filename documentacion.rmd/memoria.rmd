@@ -209,7 +209,7 @@ Para evaluar estos sistemas, puesto que disponemos de valoraciones reales de usu
 
 ## Evaluación no supervisada
 
-En primer lugar realizamos una evaluación no supervisada de los sistemas de recomendación implementados. Para ello, utilizamos las siguientes medidas clásicas para sistemas de recomendación:
+En primer lugar realizamos una evaluación no supervisada de los sistemas de recomendación implementados. Para ello, utilizamos las siguientes medidas clásicas para sistemas de recomendación \cite{c3, c4}:
 
 - **Cobertura.** La cobertura mide el porcentaje de películas que el sistema es capaz de recomendar, dentro del catálogo completo. Se obtiene como
 \[ C = \frac{len(unique(L))}{N}, \]
@@ -569,7 +569,7 @@ Una vez importada la librería o iniciada la sesión interactiva, el primer paso
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=6 cm]{./images/ex_inicial.png}
+\includegraphics[width=7 cm]{./images/ex_inicial.png}
 \caption{Inicialización del sistema de recomendación y consultas básicas.\label{fig:ex_inicial}}
 \end{figure}
 
@@ -577,7 +577,7 @@ Sin embargo, si queremos empezar a obtener recomendaciones, debemos especificar 
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=6 cm]{./images/ex_set.png}
+\includegraphics[width=7 cm]{./images/ex_set.png}
 \caption{Configuración de las medidas de similitud y los métodos de entrenamiento a utilizar para los distintos sistemas.\label{fig:ex_set}}
 \end{figure}
 
@@ -585,7 +585,7 @@ Una vez especificados los parámetros anteriores necesarios para cada sistema, p
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=6 cm]{./images/ex_popularity.png}
+\includegraphics[width=8 cm]{./images/ex_popularity.png}
 \caption{Recomendación basada en popularidad. Podemos observar cuáles son las películas mejor valoradas a nivel global de la base de datos. También vemos cómo las recomendaciones son siempre las mismas para todos los usuarios.\label{fig:ex_popularity}}
 \end{figure}
 
@@ -594,15 +594,15 @@ El método `get_content_recommendations(title, top)` nos permite obtener la list
 \begin{figure}[h]
 \begin{minipage}{0.3\textwidth}
 \centering
-\includegraphics[width=5 cm]{./images/ex_content_1}
+\includegraphics[width=6 cm]{./images/ex_content_1}
 \end{minipage}\hfill
 \begin{minipage}{0.3\textwidth}
 \centering
-\includegraphics[width=5 cm]{./images/ex_content_2}
+\includegraphics[width=6 cm]{./images/ex_content_2}
 \end{minipage}\hfill
 \begin{minipage}{0.3\textwidth}
 \centering
-\includegraphics[width=5 cm]{./images/ex_content_3}
+\includegraphics[width=6.5 cm]{./images/ex_content_3}
 \end{minipage}\hfill
 \caption{Recomendaciones con el sistema basado en contenido. A la izquierda, usando la similitud basada en la descripción de la película. En el centro, usando la similitud basada en créditos, géneros y palabras clave. Podemos ver que en el primer caso prácticamente todas las recomendaciones son sobre películas que tratan de piratas o en las que aparecen fábricas de chocolate. En el segundo caso aparecen películas que tratan otros temas, pero que comparten géneros o actores (en este caso Johnny Depp) con las películas indicadas. A la derecha se muestran las recomendaciones para un usuario concreto, de acuerdo con las películas que ha valorado positivamente. \label{fig:ex_content}}
 \end{figure}
@@ -611,7 +611,7 @@ El método `get_collaborative_recommendations_for_user(userId, top)` muestra, pa
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=6 cm]{./images/ex_collaborative.png}
+\includegraphics[width=8 cm]{./images/ex_collaborative.png}
 \caption{Recomendaciones del sistema colaborativo (con SVD) para distintos usuarios.\label{fig:ex_collaborative}}
 \end{figure}
 
@@ -619,7 +619,7 @@ En cuanto al sistema híbrido, el método `get_hybrid_cascade_recommendations_fo
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=8 cm]{./images/ex_hybrid.png}
+\includegraphics[width=10 cm]{./images/ex_hybrid.png}
 \caption{Recomendaciones de los sistemas híbridos (con similaridad por descripciones y SVD) para distintos usuarios.\label{fig:ex_hybrid}}
 \end{figure}
 
@@ -634,7 +634,8 @@ Finalmente, la clase `RecommenderSystem` proporciona los mecanismos necesarios p
 \clearpage
 
 \begin{thebibliography}{X}
-	\bibitem{c1} \url{https://www.kaggle.com/rounakbanik/the-movies-dataset}
-	\bibitem{c2} \url{http://surpriselib.com/}
-	\bibitem{c3} \url{https://github.com/statisticianinstilettos/recmetrics}
+	\bibitem{c1} R. Banik. \textit{The Movies Dataset. Metadata on over 45,000 movies. 26 million ratings from over 270,000 users.} \url{https://www.kaggle.com/rounakbanik/the-movies-dataset}
+	\bibitem{c2} N. Hug. \textit{Surprise. A Python scikit building and analyzing recommender systems.} \url{http://surpriselib.com/}
+	\bibitem{c3} C. Longo. \textit{Recmetrics. A Python library with diagnostic and evaluation metrics useful for evaluating recommender systems.} \url{https://github.com/statisticianinstilettos/recmetrics}
+	\bibitem{c4} S. Vargas, \textit{Novelty and Diversity Enhancement and Evaluation in Recommender Systems (Trabajo de Fin de Máster)}. Universidad autónoma de Madrid, 2012.
 \end{thebibliography}
