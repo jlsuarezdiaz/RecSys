@@ -15,6 +15,13 @@ lang: es-ES
 linestretch: 1
 csl: ieee.csl
 ---
+
+```{r opts, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "rimages/"
+)
+```
+
 <!--
 Highlights: default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, null
 -->
@@ -104,8 +111,8 @@ Juan Luis Suárez Díaz\\
 \end{minipage}\\[1cm]
 
 % If you don't want a supervisor, uncomment the two lines below and remove the section above
-%\Large \emph{Author:}\\
-%John \textsc{Smith}\\[3cm] % Your name
+\Large \emph{Profesor:}\\
+Enrique Herrera-Viedma\\[3cm] % Your name
 
 %----------------------------------------------------------------------------------------
 %	DATE SECTION
